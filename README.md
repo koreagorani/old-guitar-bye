@@ -4,5 +4,5 @@
 
 - Telegram은 향후 운영 UI로 사용합니다.
 - DB가 source of truth입니다.
-- 현재 구현은 Inventory lifecycle state machine입니다.
+- 현재 구현은 Inventory/Acquisition state machine과 SQLite 장부입니다.
 - Node.js 22, JavaScript, GitHub Actions를 사용합니다.
