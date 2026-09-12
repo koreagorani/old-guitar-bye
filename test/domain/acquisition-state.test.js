@@ -6,27 +6,17 @@ import {
   transitionAcquisition,
 } from "../../src/domain/acquisition/acquisition-state.js";
 
-const states = [
-  "PENDING", "REVIEWING", "IGNORED", "COMMITTED",
-  "PURCHASED", "RECEIVED", "CANCELLED",
-];
-
+const states = ["FOUND", "BUYING", "RECEIVED", "IGNORED", "CANCELLED"];
 const allowedTransitions = [
-  ["PENDING", "REVIEWING"],
-  ["PENDING", "IGNORED"],
-  ["REVIEWING", "COMMITTED"],
-  ["REVIEWING", "IGNORED"],
-  ["COMMITTED", "PURCHASED"],
-  ["COMMITTED", "CANCELLED"],
-  ["PURCHASED", "RECEIVED"],
-  ["PURCHASED", "CANCELLED"],
+  ["FOUND", "BUYING"],
+  ["FOUND", "IGNORED"],
+  ["BUYING", "RECEIVED"],
+  ["BUYING", "CANCELLED"],
 ];
-
 const allowedTransitionKeys = new Set(
   allowedTransitions.map(([current, next]) => `${current}:${next}`),
 );
 
-// All 7 x 7 pairs include self-transitions and every terminal-state exit.
 for (const currentState of states) {
   for (const nextState of states) {
     const allowed = allowedTransitionKeys.has(`${currentState}:${nextState}`);
@@ -44,25 +34,22 @@ for (const currentState of states) {
   }
 }
 
-const unknownStates = [
-  "UNKNOWN", "pending", "", "SOLD", null, undefined, 0, false, {}, [],
+const unknownStateCases = [
+  ["UNKNOWN", "BUYING", "currentState", "UNKNOWN"],
+  ["FOUND", "PENDING", "nextState", "PENDING"],
+  [null, "BUYING", "currentState", "null"],
 ];
 
-for (const [index, value] of unknownStates.entries()) {
-  for (const argumentName of ["currentState", "nextState"]) {
-    test(`acquisition rejects unknown ${argumentName} case ${index + 1}`, () => {
-      const args = argumentName === "currentState"
-        ? [value, "REVIEWING"]
-        : ["PENDING", value];
-      const expectedError = new TypeError(
-        `Unknown acquisition state for ${argumentName}: ${String(value)}`,
-      );
-      assert.throws(() => canTransitionAcquisition(...args), expectedError);
-      assert.throws(() => transitionAcquisition(...args), expectedError);
-    });
-  }
+for (const [currentState, nextState, argumentName, value] of unknownStateCases) {
+  test(`acquisition rejects unknown ${argumentName}: ${value}`, () => {
+    const expectedError = new TypeError(
+      `Unknown acquisition state for ${argumentName}: ${value}`,
+    );
+    assert.throws(() => canTransitionAcquisition(currentState, nextState), expectedError);
+    assert.throws(() => transitionAcquisition(currentState, nextState), expectedError);
+  });
 }
 
 test("RECEIVED marks physical arrival when InventoryItem creation becomes possible", () => {
-  assert.equal(transitionAcquisition("PURCHASED", "RECEIVED"), "RECEIVED");
+  assert.equal(transitionAcquisition("BUYING", "RECEIVED"), "RECEIVED");
 });

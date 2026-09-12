@@ -1,23 +1,12 @@
-const INVENTORY_STATES = new Set([
-  "RECEIVED",
-  "INSPECTING",
-  "REPAIRING",
-  "READY",
-  "LISTED",
-  "SOLD",
-]);
-
 const ALLOWED_TRANSITIONS = new Map([
-  ["RECEIVED", new Set(["INSPECTING"])],
-  ["INSPECTING", new Set(["REPAIRING", "READY"])],
-  ["REPAIRING", new Set(["READY"])],
-  ["READY", new Set(["REPAIRING", "LISTED"])],
-  ["LISTED", new Set(["READY", "SOLD"])],
+  ["IN_STOCK", new Set(["REPAIRING", "FOR_SALE"])],
+  ["REPAIRING", new Set(["FOR_SALE"])],
+  ["FOR_SALE", new Set(["REPAIRING", "SOLD"])],
   ["SOLD", new Set()],
 ]);
 
 function assertKnownInventoryState(state, argumentName) {
-  if (!INVENTORY_STATES.has(state)) {
+  if (!ALLOWED_TRANSITIONS.has(state)) {
     throw new TypeError(`Unknown inventory state for ${argumentName}: ${String(state)}`);
   }
 }

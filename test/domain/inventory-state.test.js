@@ -6,74 +6,47 @@ import {
   transitionInventory,
 } from "../../src/domain/inventory/inventory-state.js";
 
-const states = [
-  "RECEIVED",
-  "INSPECTING",
-  "REPAIRING",
-  "READY",
-  "LISTED",
-  "SOLD",
-];
-
+const states = ["IN_STOCK", "REPAIRING", "FOR_SALE", "SOLD"];
 const allowedTransitions = [
-  ["RECEIVED", "INSPECTING"],
-  ["INSPECTING", "REPAIRING"],
-  ["INSPECTING", "READY"],
-  ["REPAIRING", "READY"],
-  ["READY", "REPAIRING"],
-  ["READY", "LISTED"],
-  ["LISTED", "READY"],
-  ["LISTED", "SOLD"],
+  ["IN_STOCK", "REPAIRING"],
+  ["IN_STOCK", "FOR_SALE"],
+  ["REPAIRING", "FOR_SALE"],
+  ["FOR_SALE", "REPAIRING"],
+  ["FOR_SALE", "SOLD"],
 ];
-
 const allowedTransitionKeys = new Set(
-  allowedTransitions.map(([currentState, nextState]) => `${currentState}:${nextState}`),
+  allowedTransitions.map(([current, next]) => `${current}:${next}`),
 );
 
-const forbiddenTransitions = states.flatMap((currentState) =>
-  states
-    .filter(
-      (nextState) => !allowedTransitionKeys.has(`${currentState}:${nextState}`),
-    )
-    .map((nextState) => [currentState, nextState]),
-);
-
-for (const [currentState, nextState] of allowedTransitions) {
-  test(`allows ${currentState} -> ${nextState}`, () => {
-    assert.equal(canTransitionInventory(currentState, nextState), true);
-    assert.equal(transitionInventory(currentState, nextState), nextState);
-  });
-}
-
-for (const [currentState, nextState] of forbiddenTransitions) {
-  test(`rejects ${currentState} -> ${nextState}`, () => {
-    assert.equal(canTransitionInventory(currentState, nextState), false);
-    assert.throws(
-      () => transitionInventory(currentState, nextState),
-      new Error(`Invalid inventory transition: ${currentState} -> ${nextState}`),
-    );
-  });
+for (const currentState of states) {
+  for (const nextState of states) {
+    const allowed = allowedTransitionKeys.has(`${currentState}:${nextState}`);
+    test(`inventory ${allowed ? "allows" : "rejects"} ${currentState} -> ${nextState}`, () => {
+      assert.equal(canTransitionInventory(currentState, nextState), allowed);
+      if (allowed) {
+        assert.equal(transitionInventory(currentState, nextState), nextState);
+      } else {
+        assert.throws(
+          () => transitionInventory(currentState, nextState),
+          new Error(`Invalid inventory transition: ${currentState} -> ${nextState}`),
+        );
+      }
+    });
+  }
 }
 
 const unknownStateCases = [
-  ["UNKNOWN", "READY", "currentState", "UNKNOWN"],
-  ["READY", "UNKNOWN", "nextState", "UNKNOWN"],
-  [null, "READY", "currentState", "null"],
+  ["UNKNOWN", "FOR_SALE", "currentState", "UNKNOWN"],
+  ["IN_STOCK", "READY", "nextState", "READY"],
+  [null, "FOR_SALE", "currentState", "null"],
 ];
 
 for (const [currentState, nextState, argumentName, value] of unknownStateCases) {
-  test(`rejects unknown ${argumentName}: ${value}`, () => {
+  test(`inventory rejects unknown ${argumentName}: ${value}`, () => {
     const expectedError = new TypeError(
       `Unknown inventory state for ${argumentName}: ${value}`,
     );
-
-    assert.throws(
-      () => canTransitionInventory(currentState, nextState),
-      expectedError,
-    );
-    assert.throws(
-      () => transitionInventory(currentState, nextState),
-      expectedError,
-    );
+    assert.throws(() => canTransitionInventory(currentState, nextState), expectedError);
+    assert.throws(() => transitionInventory(currentState, nextState), expectedError);
   });
 }

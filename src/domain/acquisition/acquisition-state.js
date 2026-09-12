@@ -1,9 +1,7 @@
 const ALLOWED_TRANSITIONS = new Map([
-  ["PENDING", new Set(["REVIEWING", "IGNORED"])],
-  ["REVIEWING", new Set(["COMMITTED", "IGNORED"])],
+  ["FOUND", new Set(["BUYING", "IGNORED"])],
+  ["BUYING", new Set(["RECEIVED", "CANCELLED"])],
   ["IGNORED", new Set()],
-  ["COMMITTED", new Set(["PURCHASED", "CANCELLED"])],
-  ["PURCHASED", new Set(["RECEIVED", "CANCELLED"])],
   ["RECEIVED", new Set()],
   ["CANCELLED", new Set()],
 ]);
