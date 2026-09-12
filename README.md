@@ -6,3 +6,13 @@
 - DB가 source of truth입니다.
 - 현재 구현은 Inventory/Acquisition state machine과 SQLite 장부입니다.
 - Node.js 22, JavaScript, GitHub Actions를 사용합니다.
+
+## Implemented
+
+- Inventory state machine
+- Acquisition state machine
+- SQLite schema/migrations
+- ListingRepository
+- AcquisitionRepository
+
+Next: implement minimal InventoryRepository. InventoryItem should only be created after Acquisition reaches RECEIVED.
