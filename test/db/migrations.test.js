@@ -68,6 +68,7 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
       assert.deepEqual(applied, [
         "001_initial.sql",
         "002_add_sale_listing_external_id.sql",
+        "003_add_sale_listing_to_sales.sql",
       ]);
       assert.deepEqual(applyMigrations(database), []);
     });
@@ -77,6 +78,15 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
         "PRAGMA table_info(sale_listings)",
       ).all().map(({ name }) => name);
       assert.ok(columns.includes("external_listing_id"));
+    });
+
+    await t.test("links sales to optional sale listings", () => {
+      const foreignKeys = database.prepare(
+        "PRAGMA foreign_key_list(sales)",
+      ).all();
+      assert.ok(foreignKeys.some(({ from, table }) => (
+        from === "sale_listing_id" && table === "sale_listings"
+      )));
     });
 
     await t.test("creates every table", () => {
