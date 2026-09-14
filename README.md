@@ -15,4 +15,6 @@
 - ListingRepository
 - AcquisitionRepository
 
-Next: implement minimal InventoryRepository. InventoryItem should only be created after Acquisition reaches RECEIVED.
+## Telegram bot
+
+읽기 전용 봇은 `TELEGRAM_BOT_TOKEN`과 `DATABASE_PATH`를 설정한 뒤 `npm run bot`으로 실행합니다. Bot token은 코드나 Git에 절대 commit하지 않습니다.
