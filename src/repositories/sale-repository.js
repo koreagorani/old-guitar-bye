@@ -1,3 +1,5 @@
+import { withImmediateTransaction } from "../db/transaction.js";
+
 const SALE_COLUMNS = `
   id,
   inventory_item_id AS inventoryItemId,
@@ -63,8 +65,7 @@ export function createSale(database, data) {
   assertNonEmptyString(soldAt, "soldAt");
   assertNullableString(note, "note");
 
-  database.exec("BEGIN IMMEDIATE;");
-  try {
+  return withImmediateTransaction(database, () => {
     const inventoryItem = database
       .prepare("SELECT id FROM inventory_items WHERE id = ?")
       .get(inventoryItemId);
@@ -106,13 +107,8 @@ export function createSale(database, data) {
       note,
     );
 
-    const sale = findSaleById(database, Number(result.lastInsertRowid));
-    database.exec("COMMIT;");
-    return sale;
-  } catch (error) {
-    database.exec("ROLLBACK;");
-    throw error;
-  }
+    return findSaleById(database, Number(result.lastInsertRowid));
+  });
 }
 
 export function findSaleById(database, id) {

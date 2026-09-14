@@ -1,4 +1,5 @@
 import { transitionInventory } from "../domain/inventory/inventory-state.js";
+import { withImmediateTransaction } from "../db/transaction.js";
 
 const INVENTORY_COLUMNS = `
   id,
@@ -85,8 +86,7 @@ export function createInventoryItem(database, data) {
   assertNullablePrice(expectedSalePriceKrw, "expectedSalePriceKrw");
   assertNullableString(note, "note");
 
-  database.exec("BEGIN IMMEDIATE;");
-  try {
+  return withImmediateTransaction(database, () => {
     const acquisition = database
       .prepare("SELECT status FROM acquisitions WHERE id = ?")
       .get(acquisitionId);
@@ -132,12 +132,8 @@ export function createInventoryItem(database, data) {
       database,
       Number(result.lastInsertRowid),
     );
-    database.exec("COMMIT;");
     return inventoryItem;
-  } catch (error) {
-    database.exec("ROLLBACK;");
-    throw error;
-  }
+  });
 }
 
 export function findInventoryItemById(database, id) {
@@ -170,8 +166,7 @@ export function findInventoryItemByAcquisitionId(database, acquisitionId) {
 export function updateInventoryState(database, id, nextState) {
   assertPositiveId(id, "id");
 
-  database.exec("BEGIN IMMEDIATE;");
-  try {
+  return withImmediateTransaction(database, () => {
     const current = findInventoryItemById(database, id);
     if (!current) {
       throw new Error(`Inventory item not found: ${id}`);
@@ -185,10 +180,6 @@ export function updateInventoryState(database, id, nextState) {
     `).run(validatedState, id);
 
     const updated = findInventoryItemById(database, id);
-    database.exec("COMMIT;");
     return updated;
-  } catch (error) {
-    database.exec("ROLLBACK;");
-    throw error;
-  }
+  });
 }
