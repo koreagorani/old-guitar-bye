@@ -29,6 +29,24 @@ function withDatabase(callback) {
   }
 }
 
+function snapshotLedger(database) {
+  const tables = [
+    "listings",
+    "acquisitions",
+    "inventory_items",
+    "repair_logs",
+    "expenses",
+    "sale_listings",
+    "sales",
+  ];
+
+  return Object.fromEntries(tables.map((table) => [
+    table,
+    database.prepare(`SELECT * FROM ${table} ORDER BY id`).all()
+      .map((row) => ({ ...row })),
+  ]));
+}
+
 let fixtureNumber = 0;
 
 function createInventoryFixture(database, overrides = {}) {
@@ -242,9 +260,9 @@ test("does not mix records from another inventory item", () => withDatabase((dat
 test("does not change database state while reading details", () => withDatabase((database) => {
   const { inventory } = createInventoryFixture(database);
   addDetailRecords(database, inventory.id);
-  const before = database.serialize();
+  const before = snapshotLedger(database);
 
   getInventoryDetail(database, inventory.id);
 
-  assert.deepEqual(database.serialize(), before);
+  assert.deepEqual(snapshotLedger(database), before);
 }));
