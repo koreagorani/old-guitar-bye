@@ -3,11 +3,14 @@ import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
 import { handleInventoryCommand } from "./commands/inventory-command.js";
+import { handleInventoryCallback } from "./callbacks/inventory-callback-handler.js";
 import {
   isAllowedTelegramChat,
   normalizeTelegramChatId,
 } from "./telegram-access.js";
 import {
+  answerTelegramCallbackQuery,
+  editTelegramMessageText,
   getTelegramUpdates,
   sendTelegramMessage,
 } from "./telegram-client.js";
@@ -23,8 +26,30 @@ function commandName(text) {
 
 export async function handleTelegramUpdate(
   update,
-  { database, sendMessage, allowedChatId },
+  {
+    database,
+    sendMessage,
+    editMessage,
+    answerCallback,
+    allowedChatId,
+  },
 ) {
+  const callbackQuery = update?.callback_query;
+  if (callbackQuery) {
+    if (!isAllowedTelegramChat(
+      callbackQuery.message?.chat?.id,
+      allowedChatId,
+    )) {
+      return { status: "ignored" };
+    }
+    return handleInventoryCallback({
+      database,
+      callbackQuery,
+      editMessage,
+      answerCallback,
+    });
+  }
+
   const message = update?.message;
   if (!message || typeof message.text !== "string") {
     return { status: "ignored" };
@@ -72,12 +97,22 @@ export async function runBot({
     "TELEGRAM_ALLOWED_CHAT_ID",
   );
 
-  const database = new DatabaseSync(databasePath, { readOnly: true });
+  const database = new DatabaseSync(databasePath);
   let offset = 0;
   const sendMessage = (message) => sendTelegramMessage({
     token,
     fetchImpl,
     ...message,
+  });
+  const editMessage = (message) => editTelegramMessageText({
+    token,
+    fetchImpl,
+    ...message,
+  });
+  const answerCallback = (callback) => answerTelegramCallbackQuery({
+    token,
+    fetchImpl,
+    ...callback,
   });
 
   try {
@@ -91,6 +126,8 @@ export async function runBot({
         await handleTelegramUpdate(update, {
           database,
           sendMessage,
+          editMessage,
+          answerCallback,
           allowedChatId: normalizedAllowedChatId,
         });
         offset = Math.max(offset, update.update_id + 1);

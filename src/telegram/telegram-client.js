@@ -42,6 +42,37 @@ export function sendTelegramMessage({
   return callTelegramApi(token, "sendMessage", body, fetchImpl);
 }
 
+export function editTelegramMessageText({
+  token,
+  chatId,
+  messageId,
+  text,
+  replyMarkup = null,
+  fetchImpl = globalThis.fetch,
+}) {
+  assertNonEmptyString(text, "text");
+  const body = { chat_id: chatId, message_id: messageId, text };
+  if (replyMarkup !== null) {
+    body.reply_markup = replyMarkup;
+  }
+  return callTelegramApi(token, "editMessageText", body, fetchImpl);
+}
+
+export function answerTelegramCallbackQuery({
+  token,
+  callbackQueryId,
+  text = null,
+  fetchImpl = globalThis.fetch,
+}) {
+  assertNonEmptyString(callbackQueryId, "callbackQueryId");
+  const body = { callback_query_id: callbackQueryId };
+  if (text !== null) {
+    assertNonEmptyString(text, "text");
+    body.text = text;
+  }
+  return callTelegramApi(token, "answerCallbackQuery", body, fetchImpl);
+}
+
 export function getTelegramUpdates({
   token,
   offset = 0,
@@ -51,7 +82,7 @@ export function getTelegramUpdates({
   return callTelegramApi(
     token,
     "getUpdates",
-    { offset, timeout, allowed_updates: ["message"] },
+    { offset, timeout, allowed_updates: ["message", "callback_query"] },
     fetchImpl,
   );
 }

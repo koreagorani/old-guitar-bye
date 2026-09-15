@@ -1,0 +1,131 @@
+import { getInventoryDetail } from "../../application/inventory/get-inventory-detail.js";
+import {
+  findInventoryItemByCode,
+  updateInventoryState,
+} from "../../repositories/inventory-repository.js";
+import { renderInventoryActions } from "../render/inventory-action-renderer.js";
+import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
+import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
+import { parseInventoryCallbackData } from "./inventory-callback-parser.js";
+
+export const CALLBACK_MESSAGES = Object.freeze({
+  start_repair: "수리 중으로 변경했습니다.",
+  mark_for_sale: "판매 가능 상태로 변경했습니다.",
+  finish_repair: "수리를 완료하고 판매 가능 상태로 변경했습니다.",
+});
+
+export const INVALID_CALLBACK_MESSAGE = "올바르지 않은 작업입니다.";
+export const INVALID_STATE_MESSAGE = "현재 상태에서는 이 작업을 할 수 없습니다.";
+export const INVENTORY_NOT_FOUND_CALLBACK_MESSAGE = "해당 재고를 찾을 수 없습니다.";
+export const UNSUPPORTED_CALLBACK_MESSAGE = "아직 지원되지 않는 작업입니다.";
+
+const NEXT_STATE_BY_ACTION = Object.freeze({
+  start_repair: "REPAIRING",
+  mark_for_sale: "FOR_SALE",
+  finish_repair: "FOR_SALE",
+});
+
+const UNSUPPORTED_ACTIONS = new Set([
+  "complete_sale",
+  "add_repair_log",
+  "add_expense",
+]);
+
+async function acknowledge(answerCallback, callbackQueryId, text) {
+  await answerCallback({ callbackQueryId, text });
+}
+
+export async function handleInventoryCallback({
+  database,
+  callbackQuery,
+  editMessage,
+  answerCallback,
+}) {
+  let parsed;
+  try {
+    parsed = parseInventoryCallbackData(callbackQuery?.data);
+  } catch {
+    await acknowledge(
+      answerCallback,
+      callbackQuery?.id,
+      INVALID_CALLBACK_MESSAGE,
+    );
+    return { status: "invalid" };
+  }
+
+  const { action, inventoryCode } = parsed;
+  if (UNSUPPORTED_ACTIONS.has(action)) {
+    await acknowledge(
+      answerCallback,
+      callbackQuery.id,
+      UNSUPPORTED_CALLBACK_MESSAGE,
+    );
+    return { status: "unsupported", action, inventoryCode };
+  }
+
+  const inventory = findInventoryItemByCode(database, inventoryCode);
+  if (!inventory) {
+    await acknowledge(
+      answerCallback,
+      callbackQuery.id,
+      INVENTORY_NOT_FOUND_CALLBACK_MESSAGE,
+    );
+    return { status: "not_found", inventoryCode };
+  }
+
+  let currentInventory = inventory;
+  const nextState = NEXT_STATE_BY_ACTION[action];
+  if (nextState !== undefined) {
+    const availableActions = renderInventoryActions(inventory.state);
+    const isAvailable = availableActions.primaryActions
+      .some(({ id }) => id === action);
+    if (!isAvailable) {
+      await acknowledge(
+        answerCallback,
+        callbackQuery.id,
+        INVALID_STATE_MESSAGE,
+      );
+      return { status: "invalid_state", action, inventoryCode };
+    }
+    try {
+      currentInventory = updateInventoryState(
+        database,
+        inventory.id,
+        nextState,
+      );
+    } catch (error) {
+      if (!error.message.startsWith("Invalid inventory transition:")) {
+        throw error;
+      }
+      await acknowledge(
+        answerCallback,
+        callbackQuery.id,
+        INVALID_STATE_MESSAGE,
+      );
+      return { status: "invalid_state", action, inventoryCode };
+    }
+  }
+
+  const detail = getInventoryDetail(database, currentInventory.id);
+  const text = renderInventoryDetail(detail);
+  const actions = renderInventoryActions(detail.inventory.state);
+  const replyMarkup = buildInventoryInlineKeyboard(actions, inventoryCode);
+
+  await editMessage({
+    chatId: callbackQuery.message.chat.id,
+    messageId: callbackQuery.message.message_id,
+    text,
+    replyMarkup,
+  });
+  await acknowledge(
+    answerCallback,
+    callbackQuery.id,
+    CALLBACK_MESSAGES[action] ?? null,
+  );
+
+  return {
+    status: action === "view_detail" ? "shown" : "updated",
+    action,
+    inventoryItemId: currentInventory.id,
+  };
+}
