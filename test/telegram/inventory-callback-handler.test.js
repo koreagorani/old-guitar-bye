@@ -242,7 +242,7 @@ test("rejects malformed callback data before database access", async () => {
   assert.equal(recorder.answers[0].text, INVALID_CALLBACK_MESSAGE);
 });
 
-for (const action of ["complete_sale", "add_repair_log", "add_expense"]) {
+for (const action of ["add_repair_log", "add_expense"]) {
   test(`${action} remains unsupported and does not change the database`, async () => withDatabase(async (database) => {
     const inventory = createInventoryFixture(database, "FOR_SALE");
     const { result, recorder } = await handle(

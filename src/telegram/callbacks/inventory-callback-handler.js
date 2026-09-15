@@ -6,6 +6,7 @@ import {
 import { renderInventoryActions } from "../render/inventory-action-renderer.js";
 import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
+import { beginCompleteSaleFlow } from "../interactions/complete-sale-flow.js";
 import { parseInventoryCallbackData } from "./inventory-callback-parser.js";
 
 export const CALLBACK_MESSAGES = Object.freeze({
@@ -26,7 +27,6 @@ const NEXT_STATE_BY_ACTION = Object.freeze({
 });
 
 const UNSUPPORTED_ACTIONS = new Set([
-  "complete_sale",
   "add_repair_log",
   "add_expense",
 ]);
@@ -40,6 +40,8 @@ export async function handleInventoryCallback({
   callbackQuery,
   editMessage,
   answerCallback,
+  sendMessage,
+  pendingInteractions,
 }) {
   let parsed;
   try {
@@ -71,6 +73,16 @@ export async function handleInventoryCallback({
       INVENTORY_NOT_FOUND_CALLBACK_MESSAGE,
     );
     return { status: "not_found", inventoryCode };
+  }
+
+  if (action === "complete_sale") {
+    return beginCompleteSaleFlow({
+      inventory,
+      callbackQuery,
+      pendingInteractions,
+      sendMessage,
+      answerCallback,
+    });
   }
 
   let currentInventory = inventory;

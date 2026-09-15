@@ -5,6 +5,11 @@ import { DatabaseSync } from "node:sqlite";
 import { handleInventoryCommand } from "./commands/inventory-command.js";
 import { handleInventoryCallback } from "./callbacks/inventory-callback-handler.js";
 import {
+  handlePendingSaleMessage,
+  handleSaleMarketplaceCallback,
+} from "./interactions/complete-sale-flow.js";
+import { createPendingInteractionStore } from "./interactions/pending-interaction-store.js";
+import {
   isAllowedTelegramChat,
   normalizeTelegramChatId,
 } from "./telegram-access.js";
@@ -32,6 +37,8 @@ export async function handleTelegramUpdate(
     editMessage,
     answerCallback,
     allowedChatId,
+    pendingInteractions = createPendingInteractionStore(),
+    now,
   },
 ) {
   const callbackQuery = update?.callback_query;
@@ -42,11 +49,24 @@ export async function handleTelegramUpdate(
     )) {
       return { status: "ignored" };
     }
+    if (callbackQuery.data?.startsWith("sale:marketplace:")) {
+      return handleSaleMarketplaceCallback({
+        database,
+        callbackQuery,
+        pendingInteractions,
+        sendMessage,
+        editMessage,
+        answerCallback,
+        now,
+      });
+    }
     return handleInventoryCallback({
       database,
       callbackQuery,
       editMessage,
       answerCallback,
+      sendMessage,
+      pendingInteractions,
     });
   }
 
@@ -56,6 +76,15 @@ export async function handleTelegramUpdate(
   }
   if (!isAllowedTelegramChat(message.chat?.id, allowedChatId)) {
     return { status: "ignored" };
+  }
+
+  const pendingResult = await handlePendingSaleMessage({
+    message,
+    pendingInteractions,
+    sendMessage,
+  });
+  if (pendingResult !== null) {
+    return pendingResult;
   }
 
   const name = commandName(message.text);
@@ -98,6 +127,7 @@ export async function runBot({
   );
 
   const database = new DatabaseSync(databasePath);
+  const pendingInteractions = createPendingInteractionStore();
   let offset = 0;
   const sendMessage = (message) => sendTelegramMessage({
     token,
@@ -129,6 +159,7 @@ export async function runBot({
           editMessage,
           answerCallback,
           allowedChatId: normalizedAllowedChatId,
+          pendingInteractions,
         });
         offset = Math.max(offset, update.update_id + 1);
       }
