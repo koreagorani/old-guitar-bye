@@ -4,6 +4,10 @@ import { DatabaseSync } from "node:sqlite";
 
 import { handleInventoryCommand } from "./commands/inventory-command.js";
 import {
+  isAllowedTelegramChat,
+  normalizeTelegramChatId,
+} from "./telegram-access.js";
+import {
   getTelegramUpdates,
   sendTelegramMessage,
 } from "./telegram-client.js";
@@ -17,9 +21,15 @@ function commandName(text) {
   return text.trim().split(/\s+/, 1)[0].split("@", 1)[0];
 }
 
-export async function handleTelegramUpdate(update, { database, sendMessage }) {
+export async function handleTelegramUpdate(
+  update,
+  { database, sendMessage, allowedChatId },
+) {
   const message = update?.message;
   if (!message || typeof message.text !== "string") {
+    return { status: "ignored" };
+  }
+  if (!isAllowedTelegramChat(message.chat?.id, allowedChatId)) {
     return { status: "ignored" };
   }
 
@@ -43,6 +53,7 @@ export async function handleTelegramUpdate(update, { database, sendMessage }) {
 export async function runBot({
   token = process.env.TELEGRAM_BOT_TOKEN,
   databasePath = process.env.DATABASE_PATH,
+  allowedChatId = process.env.TELEGRAM_ALLOWED_CHAT_ID,
   fetchImpl = globalThis.fetch,
   signal,
 } = {}) {
@@ -52,6 +63,14 @@ export async function runBot({
   if (typeof databasePath !== "string" || databasePath.trim() === "") {
     throw new Error("DATABASE_PATH is required");
   }
+  if (allowedChatId === undefined || allowedChatId === null
+    || (typeof allowedChatId === "string" && allowedChatId.trim() === "")) {
+    throw new Error("TELEGRAM_ALLOWED_CHAT_ID is required");
+  }
+  const normalizedAllowedChatId = normalizeTelegramChatId(
+    allowedChatId,
+    "TELEGRAM_ALLOWED_CHAT_ID",
+  );
 
   const database = new DatabaseSync(databasePath, { readOnly: true });
   let offset = 0;
@@ -69,7 +88,11 @@ export async function runBot({
         fetchImpl,
       });
       for (const update of updates) {
-        await handleTelegramUpdate(update, { database, sendMessage });
+        await handleTelegramUpdate(update, {
+          database,
+          sendMessage,
+          allowedChatId: normalizedAllowedChatId,
+        });
         offset = Math.max(offset, update.update_id + 1);
       }
     }

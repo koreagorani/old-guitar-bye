@@ -88,7 +88,11 @@ test("responds to /start with a short Korean introduction", async () => {
   const recorder = messageRecorder();
   const result = await handleTelegramUpdate(
     { message: { chat: { id: 123 }, text: "/start" } },
-    { database: null, sendMessage: recorder.sendMessage },
+    {
+      database: null,
+      sendMessage: recorder.sendMessage,
+      allowedChatId: "123",
+    },
   );
 
   assert.deepEqual(result, { status: "started" });
@@ -112,7 +116,11 @@ test("routes /inventory updates through the bot entry point", async () => withDa
         text: `/inventory ${inventory.inventoryCode}`,
       },
     },
-    { database, sendMessage: recorder.sendMessage },
+    {
+      database,
+      sendMessage: recorder.sendMessage,
+      allowedChatId: "123",
+    },
   );
 
   assert.deepEqual(result, { status: "found", inventoryItemId: inventory.id });
