@@ -14,6 +14,7 @@ import {
   findInventoryItemByAcquisitionId,
   findInventoryItemByCode,
   findInventoryItemById,
+  listActiveInventoryItems,
   updateInventoryState,
 } from "../../src/repositories/inventory-repository.js";
 import { saveOrUpdateListing } from "../../src/repositories/listing-repository.js";
@@ -157,6 +158,30 @@ test("returns null when an inventory item does not exist", () => withDatabase((d
   assert.equal(findInventoryItemById(database, 999), null);
   assert.equal(findInventoryItemByCode(database, "G-9999"), null);
   assert.equal(findInventoryItemByAcquisitionId(database, 999), null);
+}));
+
+test("lists active inventory newest first and excludes SOLD", () => withDatabase((database) => {
+  const first = createInventoryFixture(database, "G-0001").inventoryItem;
+  const second = createInventoryFixture(database, "G-0002").inventoryItem;
+  const third = createInventoryFixture(database, "G-0003").inventoryItem;
+  const sold = createInventoryFixture(database, "G-0004").inventoryItem;
+  updateInventoryState(database, second.id, "REPAIRING");
+  updateInventoryState(database, third.id, "FOR_SALE");
+  updateInventoryState(database, sold.id, "FOR_SALE");
+  updateInventoryState(database, sold.id, "SOLD");
+
+  const items = listActiveInventoryItems(database);
+
+  assert.deepEqual(
+    items.map(({ inventoryCode, state }) => ({ inventoryCode, state })),
+    [
+      { inventoryCode: "G-0003", state: "FOR_SALE" },
+      { inventoryCode: "G-0002", state: "REPAIRING" },
+      { inventoryCode: "G-0001", state: "IN_STOCK" },
+    ],
+  );
+  assert.equal(items.some(({ id }) => id === sold.id), false);
+  assert.equal(items.some(({ id }) => id === first.id), true);
 }));
 
 test("uses the domain state machine for valid transitions", () => withDatabase((database) => {

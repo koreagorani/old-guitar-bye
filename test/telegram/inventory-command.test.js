@@ -226,7 +226,7 @@ test("uses English action ids in callback data", async () => withDatabase(async 
   )));
 }));
 
-for (const commandText of ["/inventory", "/inventory G-0003 extra", null]) {
+for (const commandText of ["/inventory G-0003 extra", null]) {
   test(`handles invalid inventory command ${String(commandText)}`, async () => withDatabase(async (database) => {
     const recorder = messageRecorder();
     const result = await handleInventoryCommand({

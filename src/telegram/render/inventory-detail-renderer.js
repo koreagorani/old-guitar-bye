@@ -1,9 +1,4 @@
-const INVENTORY_STATE_LABELS = Object.freeze({
-  IN_STOCK: "재고 보유",
-  REPAIRING: "수리 중",
-  FOR_SALE: "판매 가능",
-  SOLD: "판매 완료",
-});
+import { inventoryStateLabel } from "./inventory-state-label.js";
 
 const ACQUISITION_STATE_LABELS = Object.freeze({
   FOUND: "매물 발견",
@@ -129,7 +124,7 @@ export function renderInventoryDetail(detail) {
     .join(" ");
   const lines = [
     `🎸 ${name}`,
-    `상태: ${labelFor(INVENTORY_STATE_LABELS, inventory.state, "inventory state")}`,
+    `상태: ${inventoryStateLabel(inventory.state)}`,
     `매입 상태: ${labelFor(ACQUISITION_STATE_LABELS, acquisition.status, "acquisition state")}`,
     "",
     `매입가: ${formatKrw(cost.purchasePriceKrw, "cost.purchasePriceKrw")}`,

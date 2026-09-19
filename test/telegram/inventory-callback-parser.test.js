@@ -6,6 +6,7 @@ import { renderInventoryActions } from "../../src/telegram/render/inventory-acti
 import { buildInventoryInlineKeyboard } from "../../src/telegram/render/telegram-keyboard.js";
 
 const supportedActions = [
+  "open",
   "start_repair",
   "mark_for_sale",
   "finish_repair",

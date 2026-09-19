@@ -163,6 +163,15 @@ export function findInventoryItemByAcquisitionId(database, acquisitionId) {
   `).get(acquisitionId));
 }
 
+export function listActiveInventoryItems(database) {
+  return database.prepare(`
+    SELECT ${INVENTORY_COLUMNS}
+    FROM inventory_items
+    WHERE state IN ('IN_STOCK', 'REPAIRING', 'FOR_SALE')
+    ORDER BY id DESC
+  `).all().map((row) => ({ ...row }));
+}
+
 export function updateInventoryState(database, id, nextState) {
   assertPositiveId(id, "id");
 

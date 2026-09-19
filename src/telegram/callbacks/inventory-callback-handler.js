@@ -143,7 +143,7 @@ export async function handleInventoryCallback({
   );
 
   return {
-    status: "updated",
+    status: action === "open" ? "opened" : "updated",
     action,
     inventoryItemId: currentInventory.id,
   };

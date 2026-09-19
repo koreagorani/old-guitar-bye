@@ -1,4 +1,5 @@
 const INVENTORY_ACTIONS = new Set([
+  "open",
   "start_repair",
   "mark_for_sale",
   "finish_repair",
