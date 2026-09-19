@@ -99,6 +99,16 @@ function dependencies(database, telegram) {
   };
 }
 
+function listCallback(chatId = 123) {
+  return {
+    callback_query: {
+      id: "back-to-inventory-list",
+      data: "inventory:list",
+      message: { chat: { id: chatId }, message_id: 77 },
+    },
+  };
+}
+
 async function listInventory(database, telegram) {
   return handleTelegramUpdate(
     { message: { chat: { id: 123 }, text: "/inventory" } },
@@ -289,4 +299,91 @@ test("keeps malformed inventory commands on the existing usage response", async 
 
   assert.deepEqual(result, { status: "invalid" });
   assert.equal(telegram.messages[0].text, INVENTORY_USAGE_MESSAGE);
+}));
+
+test("shows a list button at the bottom of every detail keyboard", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = telegramRecorder();
+
+  await handleTelegramUpdate({
+    message: {
+      chat: { id: 123 },
+      text: `/inventory ${inventory.inventoryCode}`,
+    },
+  }, dependencies(database, telegram));
+
+  assert.deepEqual(telegram.messages[0].replyMarkup.inline_keyboard.at(-1), [{
+    text: "목록으로",
+    callback_data: "inventory:list",
+  }]);
+}));
+
+test("back-to-list callback renders all active states and excludes SOLD", async () => withDatabase(async (database) => {
+  const inStock = createInventoryFixture(database, { state: "IN_STOCK" });
+  const repairing = createInventoryFixture(database, { state: "REPAIRING" });
+  const forSale = createInventoryFixture(database, { state: "FOR_SALE" });
+  const sold = createInventoryFixture(database, { state: "SOLD" });
+  const telegram = telegramRecorder();
+
+  const result = await handleTelegramUpdate(
+    listCallback(),
+    dependencies(database, telegram),
+  );
+
+  assert.deepEqual(result, { status: "listed", count: 3 });
+  assert.equal(telegram.edits[0].messageId, 77);
+  assert.match(telegram.edits[0].text, new RegExp(`${inStock.inventoryCode} · Yamaha F310 · 재고 보유`));
+  assert.match(telegram.edits[0].text, new RegExp(`${repairing.inventoryCode} · Yamaha F310 · 수리 중`));
+  assert.match(telegram.edits[0].text, new RegExp(`${forSale.inventoryCode} · Yamaha F310 · 판매 가능`));
+  assert.doesNotMatch(telegram.edits[0].text, new RegExp(sold.inventoryCode));
+  assert.deepEqual(telegram.answers, [{
+    callbackQueryId: "back-to-inventory-list",
+    text: null,
+  }]);
+}));
+
+test("back-to-list callback does not change inventory state", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database, { state: "REPAIRING" });
+  const telegram = telegramRecorder();
+
+  await handleTelegramUpdate(listCallback(), dependencies(database, telegram));
+
+  assert.equal(
+    findInventoryItemByCode(database, inventory.inventoryCode).state,
+    "REPAIRING",
+  );
+}));
+
+test("back-to-list callback handles an empty active inventory list", async () => withDatabase(async (database) => {
+  createInventoryFixture(database, { state: "SOLD" });
+  const telegram = telegramRecorder();
+
+  const result = await handleTelegramUpdate(
+    listCallback(),
+    dependencies(database, telegram),
+  );
+
+  assert.deepEqual(result, { status: "listed", count: 0 });
+  assert.equal(telegram.edits[0].text, EMPTY_INVENTORY_MESSAGE);
+  assert.deepEqual(telegram.edits[0].replyMarkup, { inline_keyboard: [] });
+}));
+
+test("direct detail lookup can return to the list in the same message", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database, { state: "FOR_SALE" });
+  const telegram = telegramRecorder();
+  await handleTelegramUpdate({
+    message: {
+      chat: { id: 123 },
+      text: `/inventory ${inventory.inventoryCode}`,
+    },
+  }, dependencies(database, telegram));
+
+  const result = await handleTelegramUpdate(
+    listCallback(),
+    dependencies(database, telegram),
+  );
+
+  assert.equal(result.status, "listed");
+  assert.match(telegram.edits[0].text, /^🎸 현재 재고/m);
+  assert.equal(telegram.edits[0].messageId, 77);
 }));

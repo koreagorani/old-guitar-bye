@@ -1,5 +1,7 @@
 import { inventoryStateLabel } from "./inventory-state-label.js";
 
+export const EMPTY_INVENTORY_MESSAGE = "현재 보유 중인 재고가 없습니다.";
+
 function assertInventoryItems(inventoryItems) {
   if (!Array.isArray(inventoryItems) || inventoryItems.length === 0) {
     throw new TypeError("inventoryItems must be a non-empty array");

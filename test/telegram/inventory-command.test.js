@@ -187,6 +187,7 @@ test("includes state-specific and common buttons", async () => withDatabase(asyn
     "바로 판매",
     "수리 기록 추가",
     "비용 추가",
+    "목록으로",
   ]);
 }));
 
@@ -221,7 +222,8 @@ test("uses English action ids in callback data", async () => withDatabase(async 
   assert.ok(callbackData.includes(
     `inventory:start_repair:${inventory.inventoryCode}`,
   ));
-  assert.ok(callbackData.every((value) => (
+  assert.ok(callbackData.includes("inventory:list"));
+  assert.ok(callbackData.every((value) => value === "inventory:list" || (
     /^inventory:[a-z]+(?:_[a-z]+)*:G-\d{4}$/.test(value)
   )));
 }));

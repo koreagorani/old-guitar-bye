@@ -5,12 +5,15 @@ import {
 } from "../../repositories/inventory-repository.js";
 import { renderInventoryActions } from "../render/inventory-action-renderer.js";
 import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
-import { renderInventoryList } from "../render/inventory-list-renderer.js";
+import {
+  EMPTY_INVENTORY_MESSAGE,
+  renderInventoryList,
+} from "../render/inventory-list-renderer.js";
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
 
 export const INVENTORY_USAGE_MESSAGE = "사용법: /inventory G-0003";
 export const INVENTORY_NOT_FOUND_MESSAGE = "해당 재고를 찾을 수 없습니다.";
-export const EMPTY_INVENTORY_MESSAGE = "현재 보유 중인 재고가 없습니다.";
+export { EMPTY_INVENTORY_MESSAGE };
 
 function isInventoryListCommand(commandText) {
   return typeof commandText === "string"

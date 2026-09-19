@@ -15,6 +15,14 @@ export function parseInventoryCallbackData(callbackData) {
     throw new TypeError("callbackData must be a string");
   }
 
+  if (callbackData === "inventory:list") {
+    return {
+      entity: "inventory",
+      action: "list",
+      inventoryCode: null,
+    };
+  }
+
   const match = INVENTORY_CALLBACK_PATTERN.exec(callbackData);
   if (match === null) {
     throw new TypeError("Invalid inventory callback data");

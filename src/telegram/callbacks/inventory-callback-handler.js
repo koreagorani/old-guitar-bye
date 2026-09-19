@@ -1,10 +1,15 @@
 import { getInventoryDetail } from "../../application/inventory/get-inventory-detail.js";
 import {
   findInventoryItemByCode,
+  listActiveInventoryItems,
   updateInventoryState,
 } from "../../repositories/inventory-repository.js";
 import { renderInventoryActions } from "../render/inventory-action-renderer.js";
 import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
+import {
+  EMPTY_INVENTORY_MESSAGE,
+  renderInventoryList,
+} from "../render/inventory-list-renderer.js";
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
 import { beginCompleteSaleFlow } from "../interactions/complete-sale-flow.js";
 import { beginExpenseFlow } from "../interactions/expense-flow.js";
@@ -52,6 +57,23 @@ export async function handleInventoryCallback({
   }
 
   const { action, inventoryCode } = parsed;
+  if (action === "list") {
+    const inventoryItems = listActiveInventoryItems(database);
+    const rendered = inventoryItems.length === 0
+      ? {
+        text: EMPTY_INVENTORY_MESSAGE,
+        replyMarkup: { inline_keyboard: [] },
+      }
+      : renderInventoryList(inventoryItems);
+    await editMessage({
+      chatId: callbackQuery.message.chat.id,
+      messageId: callbackQuery.message.message_id,
+      ...rendered,
+    });
+    await acknowledge(answerCallback, callbackQuery.id, null);
+    return { status: "listed", count: inventoryItems.length };
+  }
+
   const inventory = findInventoryItemByCode(database, inventoryCode);
   if (!inventory) {
     await acknowledge(

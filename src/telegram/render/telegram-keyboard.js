@@ -10,7 +10,9 @@ function toButton(action, inventoryCode) {
 
   return {
     text: action.label,
-    callback_data: `inventory:${action.id}:${inventoryCode}`,
+    callback_data: action.id === "list"
+      ? "inventory:list"
+      : `inventory:${action.id}:${inventoryCode}`,
   };
 }
 
@@ -32,10 +34,22 @@ export function buildInventoryInlineKeyboard(actions, inventoryCode) {
     )));
   }
   if (actions.secondaryActions.length > 0) {
-    rows.push(actions.secondaryActions.map((action) => toButton(
+    const recordActions = actions.secondaryActions.filter(
+      ({ id }) => id !== "list",
+    );
+    const navigationActions = actions.secondaryActions.filter(
+      ({ id }) => id === "list",
+    );
+    if (recordActions.length > 0) {
+      rows.push(recordActions.map((action) => toButton(
+        action,
+        inventoryCode,
+      )));
+    }
+    rows.push(...navigationActions.map((action) => [toButton(
       action,
       inventoryCode,
-    )));
+    )]));
   }
 
   return { inline_keyboard: rows };

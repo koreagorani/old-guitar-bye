@@ -53,6 +53,7 @@ test("uses English action ids", () => {
 const expectedSecondaryActions = [
   { id: "add_repair_log", label: "수리 기록 추가" },
   { id: "add_expense", label: "비용 추가" },
+  { id: "list", label: "목록으로" },
 ];
 
 for (const action of expectedSecondaryActions) {

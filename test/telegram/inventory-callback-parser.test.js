@@ -15,6 +15,14 @@ const supportedActions = [
   "add_expense",
 ];
 
+test("parses the read-only inventory list callback", () => {
+  assert.deepEqual(parseInventoryCallbackData("inventory:list"), {
+    entity: "inventory",
+    action: "list",
+    inventoryCode: null,
+  });
+});
+
 for (const action of supportedActions) {
   test(`parses the ${action} inventory callback`, () => {
     assert.deepEqual(
@@ -38,7 +46,11 @@ for (const state of ["IN_STOCK", "REPAIRING", "FOR_SALE", "SOLD"]) {
     for (const button of buttons) {
       const parsed = parseInventoryCallbackData(button.callback_data);
       assert.equal(parsed.entity, "inventory");
-      assert.equal(parsed.inventoryCode, "G-0042");
+      if (parsed.action === "list") {
+        assert.equal(parsed.inventoryCode, null);
+      } else {
+        assert.equal(parsed.inventoryCode, "G-0042");
+      }
       assert.equal(parsed.action, button.callback_data.split(":")[1]);
     }
   });
