@@ -8,6 +8,7 @@ import {
   handlePendingSaleMessage,
   handleSaleMarketplaceCallback,
 } from "./interactions/complete-sale-flow.js";
+import { handlePendingRepairMessage } from "./interactions/repair-log-flow.js";
 import { createPendingInteractionStore } from "./interactions/pending-interaction-store.js";
 import {
   isAllowedTelegramChat,
@@ -108,6 +109,18 @@ export async function handleTelegramUpdate(
   }
   if (!isAllowedTelegramChat(message.chat?.id, allowedChatId)) {
     return { status: "ignored" };
+  }
+
+  const repairResult = await handlePendingRepairMessage({
+    database,
+    message,
+    pendingInteractions,
+    sendMessage,
+    editMessage,
+    now,
+  });
+  if (repairResult !== null) {
+    return repairResult;
   }
 
   const pendingResult = await handlePendingSaleMessage({

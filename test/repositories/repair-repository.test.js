@@ -245,14 +245,13 @@ test("validates the supported repair types", async (t) => {
   }
 });
 
-test("rejects an unknown repair type", () => withDatabase((database) => {
+test("allows a free-text repair description", () => withDatabase((database) => {
   const inventoryItem = createInventoryFixture(database);
-  assert.throws(
-    () => addRepairLog(database, repairData(inventoryItem.id, {
-      type: "UNKNOWN",
-    })),
-    new TypeError("Unknown repair type: UNKNOWN"),
-  );
+  const repairLog = addRepairLog(database, repairData(inventoryItem.id, {
+    type: "줄 교체",
+  }));
+
+  assert.equal(repairLog.type, "줄 교체");
 }));
 
 test("allows adding a historical repair log to a SOLD inventory item", () => withDatabase((database) => {

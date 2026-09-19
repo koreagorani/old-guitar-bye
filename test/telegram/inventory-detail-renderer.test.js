@@ -119,6 +119,22 @@ test("renders repair records with Korean labels", () => {
   assert.match(text, /수리 기록:\n- 세척\n- 줄 교체 8,000원 \/ 10분/);
 });
 
+test("renders a free-text repair description as entered", () => {
+  const text = renderInventoryDetail(detailFixture({
+    repairs: [{
+      id: 1,
+      inventoryItemId: 3,
+      type: "브리지 접착",
+      costKrw: 12000,
+      minutesSpent: null,
+      note: null,
+      performedAt: "2026-09-05T00:00:00Z",
+    }],
+  }));
+
+  assert.match(text, /수리 기록:\n- 브리지 접착 12,000원/);
+});
+
 test("renders expense records with Korean labels", () => {
   const text = renderInventoryDetail(detailFixture({
     expenses: [

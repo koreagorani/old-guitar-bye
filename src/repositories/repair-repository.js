@@ -1,13 +1,3 @@
-const REPAIR_TYPES = new Set([
-  "CLEANING",
-  "STRING_CHANGE",
-  "NECK_ADJUSTMENT",
-  "ACTION_ADJUSTMENT",
-  "FRET_WORK",
-  "ELECTRONICS",
-  "OTHER",
-]);
-
 const REPAIR_LOG_COLUMNS = `
   id,
   inventory_item_id AS inventoryItemId,
@@ -68,9 +58,6 @@ export function addRepairLog(database, data) {
 
   assertPositiveId(inventoryItemId, "inventoryItemId");
   assertNonEmptyString(type, "type");
-  if (!REPAIR_TYPES.has(type)) {
-    throw new TypeError(`Unknown repair type: ${type}`);
-  }
   assertNonNegativeInteger(costKrw, "costKrw");
   assertNullableNonNegativeInteger(minutesSpent, "minutesSpent");
   assertNullableString(note, "note");

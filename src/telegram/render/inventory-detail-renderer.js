@@ -70,7 +70,10 @@ function marketplaceLabel(marketplace) {
 }
 
 function renderRepair(repair) {
-  const label = labelFor(REPAIR_TYPE_LABELS, repair.type, "repair type");
+  if (typeof repair.type !== "string" || repair.type.trim() === "") {
+    throw new TypeError("repair.type must be a non-empty string");
+  }
+  const label = REPAIR_TYPE_LABELS[repair.type] ?? repair.type;
   const details = [];
   if (repair.costKrw > 0) {
     details.push(formatKrw(repair.costKrw, "repair.costKrw"));
