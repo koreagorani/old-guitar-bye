@@ -18,7 +18,6 @@ import {
   INVALID_CALLBACK_MESSAGE,
   INVALID_STATE_MESSAGE,
   INVENTORY_NOT_FOUND_CALLBACK_MESSAGE,
-  UNSUPPORTED_CALLBACK_MESSAGE,
 } from "../../src/telegram/callbacks/inventory-callback-handler.js";
 
 async function withDatabase(callback) {
@@ -282,18 +281,3 @@ test("rejects malformed callback data before database access", async () => {
   assert.deepEqual(result, { status: "invalid" });
   assert.equal(recorder.answers[0].text, INVALID_CALLBACK_MESSAGE);
 });
-
-for (const action of ["add_expense"]) {
-  test(`${action} remains unsupported and does not change the database`, async () => withDatabase(async (database) => {
-    const inventory = createInventoryFixture(database, "FOR_SALE");
-    const { result, recorder } = await handle(
-      database,
-      callbackQuery(action, inventory.inventoryCode),
-    );
-
-    assert.equal(result.status, "unsupported");
-    assert.equal(findInventoryItemByCode(database, inventory.inventoryCode).state, "FOR_SALE");
-    assert.equal(recorder.answers[0].text, UNSUPPORTED_CALLBACK_MESSAGE);
-    assert.equal(recorder.edits.length, 0);
-  }));
-}

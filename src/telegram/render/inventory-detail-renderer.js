@@ -85,11 +85,16 @@ function renderRepair(repair) {
 }
 
 function renderExpense(expense) {
-  const label = labelFor(
+  const categoryLabel = labelFor(
     EXPENSE_CATEGORY_LABELS,
     expense.category,
     "expense category",
   );
+  const label = expense.category === "OTHER"
+    && typeof expense.note === "string"
+    && expense.note.trim() !== ""
+    ? expense.note
+    : categoryLabel;
   return `- ${label} ${formatKrw(expense.amountKrw, "expense.amountKrw")}`;
 }
 

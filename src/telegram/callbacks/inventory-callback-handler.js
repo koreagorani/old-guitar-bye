@@ -7,6 +7,7 @@ import { renderInventoryActions } from "../render/inventory-action-renderer.js";
 import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
 import { beginCompleteSaleFlow } from "../interactions/complete-sale-flow.js";
+import { beginExpenseFlow } from "../interactions/expense-flow.js";
 import { beginRepairLogFlow } from "../interactions/repair-log-flow.js";
 import { parseInventoryCallbackData } from "./inventory-callback-parser.js";
 
@@ -19,17 +20,12 @@ export const CALLBACK_MESSAGES = Object.freeze({
 export const INVALID_CALLBACK_MESSAGE = "올바르지 않은 작업입니다.";
 export const INVALID_STATE_MESSAGE = "현재 상태에서는 이 작업을 할 수 없습니다.";
 export const INVENTORY_NOT_FOUND_CALLBACK_MESSAGE = "해당 재고를 찾을 수 없습니다.";
-export const UNSUPPORTED_CALLBACK_MESSAGE = "아직 지원되지 않는 작업입니다.";
 
 const NEXT_STATE_BY_ACTION = Object.freeze({
   start_repair: "REPAIRING",
   mark_for_sale: "FOR_SALE",
   finish_repair: "FOR_SALE",
 });
-
-const UNSUPPORTED_ACTIONS = new Set([
-  "add_expense",
-]);
 
 async function acknowledge(answerCallback, callbackQueryId, text) {
   await answerCallback({ callbackQueryId, text });
@@ -56,15 +52,6 @@ export async function handleInventoryCallback({
   }
 
   const { action, inventoryCode } = parsed;
-  if (UNSUPPORTED_ACTIONS.has(action)) {
-    await acknowledge(
-      answerCallback,
-      callbackQuery.id,
-      UNSUPPORTED_CALLBACK_MESSAGE,
-    );
-    return { status: "unsupported", action, inventoryCode };
-  }
-
   const inventory = findInventoryItemByCode(database, inventoryCode);
   if (!inventory) {
     await acknowledge(
@@ -87,6 +74,16 @@ export async function handleInventoryCallback({
 
   if (action === "add_repair_log") {
     return beginRepairLogFlow({
+      inventory,
+      callbackQuery,
+      pendingInteractions,
+      sendMessage,
+      answerCallback,
+    });
+  }
+
+  if (action === "add_expense") {
+    return beginExpenseFlow({
       inventory,
       callbackQuery,
       pendingInteractions,

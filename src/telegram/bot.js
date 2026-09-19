@@ -8,6 +8,7 @@ import {
   handlePendingSaleMessage,
   handleSaleMarketplaceCallback,
 } from "./interactions/complete-sale-flow.js";
+import { handlePendingExpenseMessage } from "./interactions/expense-flow.js";
 import { handlePendingRepairMessage } from "./interactions/repair-log-flow.js";
 import { createPendingInteractionStore } from "./interactions/pending-interaction-store.js";
 import {
@@ -121,6 +122,18 @@ export async function handleTelegramUpdate(
   });
   if (repairResult !== null) {
     return repairResult;
+  }
+
+  const expenseResult = await handlePendingExpenseMessage({
+    database,
+    message,
+    pendingInteractions,
+    sendMessage,
+    editMessage,
+    now,
+  });
+  if (expenseResult !== null) {
+    return expenseResult;
   }
 
   const pendingResult = await handlePendingSaleMessage({
