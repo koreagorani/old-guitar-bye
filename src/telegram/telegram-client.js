@@ -20,9 +20,11 @@ async function callTelegramApi(token, method, body, fetchImpl) {
   );
   const payload = await response.json();
   if (!response.ok || payload.ok !== true) {
-    throw new Error(
-      `Telegram ${method} failed: ${payload.description ?? response.status}`,
-    );
+    const description = payload.description ?? String(response.status);
+    const error = new Error(`Telegram ${method} failed: ${description}`);
+    error.telegramMethod = method;
+    error.telegramDescription = description;
+    throw error;
   }
   return payload.result;
 }
@@ -42,7 +44,7 @@ export function sendTelegramMessage({
   return callTelegramApi(token, "sendMessage", body, fetchImpl);
 }
 
-export function editTelegramMessageText({
+export async function editTelegramMessageText({
   token,
   chatId,
   messageId,
@@ -55,7 +57,15 @@ export function editTelegramMessageText({
   if (replyMarkup !== null) {
     body.reply_markup = replyMarkup;
   }
-  return callTelegramApi(token, "editMessageText", body, fetchImpl);
+  try {
+    return await callTelegramApi(token, "editMessageText", body, fetchImpl);
+  } catch (error) {
+    if (error.telegramMethod === "editMessageText"
+      && /message is not modified/i.test(error.telegramDescription)) {
+      return { notModified: true };
+    }
+    throw error;
+  }
 }
 
 export function answerTelegramCallbackQuery({

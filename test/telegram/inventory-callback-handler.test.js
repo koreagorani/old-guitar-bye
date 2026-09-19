@@ -5,7 +5,10 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { applyMigrations, openDatabase } from "../../scripts/migrate.js";
-import { handleTelegramUpdate } from "../../src/telegram/bot.js";
+import {
+  handleTelegramUpdate,
+  processTelegramUpdates,
+} from "../../src/telegram/bot.js";
 import { createAcquisition, updateAcquisitionState } from "../../src/repositories/acquisition-repository.js";
 import { createInventoryItem, findInventoryItemByCode, updateInventoryState } from "../../src/repositories/inventory-repository.js";
 import { saveOrUpdateListing } from "../../src/repositories/listing-repository.js";
@@ -144,6 +147,75 @@ test("view_detail does not change inventory state", async () => withDatabase(asy
 
   assert.equal(result.status, "shown");
   assert.equal(findInventoryItemByCode(database, inventory.inventoryCode).state, "IN_STOCK");
+}));
+
+test("acknowledges view_detail even when its message edit fails", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const answers = [];
+
+  await assert.rejects(
+    handleTelegramUpdate(
+      { callback_query: callbackQuery("view_detail", inventory.inventoryCode) },
+      {
+        database,
+        editMessage: async () => { throw new Error("Telegram edit failed"); },
+        answerCallback: async (answer) => answers.push(answer),
+        allowedChatId: "123",
+      },
+    ),
+    /Telegram edit failed/,
+  );
+
+  assert.deepEqual(answers, [{ callbackQueryId: "callback-view_detail" }]);
+}));
+
+test("isolates a failed callback update and continues with finish_repair", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database, "REPAIRING");
+  const answers = [];
+  const logged = [];
+  let editCalls = 0;
+  const updates = [
+    {
+      update_id: 10,
+      callback_query: callbackQuery("view_detail", inventory.inventoryCode),
+    },
+    {
+      update_id: 11,
+      callback_query: callbackQuery("finish_repair", inventory.inventoryCode),
+    },
+  ];
+
+  const offset = await processTelegramUpdates(updates, {
+    offset: 0,
+    database,
+    editMessage: async () => {
+      editCalls += 1;
+      if (editCalls === 1) {
+        throw new Error("Telegram edit failed");
+      }
+    },
+    answerCallback: async (answer) => answers.push(answer),
+    allowedChatId: "123",
+    logger: { error: (...args) => logged.push(args) },
+  });
+
+  assert.equal(offset, 12);
+  assert.equal(editCalls, 2);
+  assert.equal(logged.length, 1);
+  assert.equal(logged[0][0], "Failed to handle Telegram update");
+  assert.equal(logged[0][1].updateId, 10);
+  assert.match(logged[0][1].error.message, /Telegram edit failed/);
+  assert.deepEqual(answers, [
+    { callbackQueryId: "callback-view_detail" },
+    {
+      callbackQueryId: "callback-finish_repair",
+      text: CALLBACK_MESSAGES.finish_repair,
+    },
+  ]);
+  assert.equal(
+    findInventoryItemByCode(database, inventory.inventoryCode).state,
+    "FOR_SALE",
+  );
 }));
 
 test("renders the latest detail and buttons after a state change", async () => withDatabase(async (database) => {

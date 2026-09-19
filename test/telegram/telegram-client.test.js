@@ -21,6 +21,14 @@ function fetchRecorder(result = true) {
   };
 }
 
+function failedFetch(description, status = 400) {
+  return async () => ({
+    ok: false,
+    status,
+    json: async () => ({ ok: false, description }),
+  });
+}
+
 test("edits the existing Telegram message with refreshed buttons", async () => {
   const recorder = fetchRecorder({ message_id: 77 });
   const replyMarkup = {
@@ -49,6 +57,31 @@ test("edits the existing Telegram message with refreshed buttons", async () => {
     text: "상태: 수리 중",
     reply_markup: replyMarkup,
   });
+});
+
+test("treats message is not modified as an idempotent edit", async () => {
+  const result = await editTelegramMessageText({
+    token: "test-token",
+    chatId: 123,
+    messageId: 77,
+    text: "상태: 수리 중",
+    fetchImpl: failedFetch("Bad Request: message is not modified"),
+  });
+
+  assert.deepEqual(result, { notModified: true });
+});
+
+test("does not hide other Telegram edit errors", async () => {
+  await assert.rejects(
+    editTelegramMessageText({
+      token: "test-token",
+      chatId: 123,
+      messageId: 77,
+      text: "상태: 수리 중",
+      fetchImpl: failedFetch("Bad Request: message to edit not found"),
+    }),
+    /Telegram editMessageText failed: Bad Request: message to edit not found/,
+  );
 });
 
 test("acknowledges a callback query with a Korean result message", async () => {

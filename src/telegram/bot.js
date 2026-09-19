@@ -29,6 +29,32 @@ function commandName(text) {
   return text.trim().split(/\s+/, 1)[0].split("@", 1)[0];
 }
 
+async function handleAuthorizedCallback(callbackQuery, answerCallback, handler) {
+  let acknowledgementAttempted = false;
+  let handlerError = null;
+  const acknowledge = async (payload) => {
+    acknowledgementAttempted = true;
+    return answerCallback(payload);
+  };
+
+  try {
+    return await handler(acknowledge);
+  } catch (error) {
+    handlerError = error;
+    throw error;
+  } finally {
+    if (!acknowledgementAttempted) {
+      try {
+        await answerCallback({ callbackQueryId: callbackQuery.id });
+      } catch (acknowledgementError) {
+        if (handlerError === null) {
+          throw acknowledgementError;
+        }
+      }
+    }
+  }
+}
+
 export async function handleTelegramUpdate(
   update,
   {
@@ -49,25 +75,31 @@ export async function handleTelegramUpdate(
     )) {
       return { status: "ignored" };
     }
-    if (callbackQuery.data?.startsWith("sale:listing:")) {
-      return handleSaleMarketplaceCallback({
-        database,
-        callbackQuery,
-        pendingInteractions,
-        sendMessage,
-        editMessage,
-        answerCallback,
-        now,
-      });
-    }
-    return handleInventoryCallback({
-      database,
+    return handleAuthorizedCallback(
       callbackQuery,
-      editMessage,
       answerCallback,
-      sendMessage,
-      pendingInteractions,
-    });
+      (acknowledge) => {
+        if (callbackQuery.data?.startsWith("sale:listing:")) {
+          return handleSaleMarketplaceCallback({
+            database,
+            callbackQuery,
+            pendingInteractions,
+            sendMessage,
+            editMessage,
+            answerCallback: acknowledge,
+            now,
+          });
+        }
+        return handleInventoryCallback({
+          database,
+          callbackQuery,
+          editMessage,
+          answerCallback: acknowledge,
+          sendMessage,
+          pendingInteractions,
+        });
+      },
+    );
   }
 
   const message = update?.message;
@@ -107,12 +139,37 @@ export async function handleTelegramUpdate(
   return { status: "ignored" };
 }
 
+export async function processTelegramUpdates(
+  updates,
+  {
+    offset,
+    logger = console,
+    ...dependencies
+  },
+) {
+  let nextOffset = offset;
+  for (const update of updates) {
+    try {
+      await handleTelegramUpdate(update, dependencies);
+    } catch (error) {
+      logger.error("Failed to handle Telegram update", {
+        updateId: update.update_id,
+        error,
+      });
+    } finally {
+      nextOffset = Math.max(nextOffset, update.update_id + 1);
+    }
+  }
+  return nextOffset;
+}
+
 export async function runBot({
   token = process.env.TELEGRAM_BOT_TOKEN,
   databasePath = process.env.DATABASE_PATH,
   allowedChatId = process.env.TELEGRAM_ALLOWED_CHAT_ID,
   fetchImpl = globalThis.fetch,
   signal,
+  logger = console,
 } = {}) {
   if (typeof token !== "string" || token.trim() === "") {
     throw new Error("TELEGRAM_BOT_TOKEN is required");
@@ -155,17 +212,16 @@ export async function runBot({
         offset,
         fetchImpl,
       });
-      for (const update of updates) {
-        await handleTelegramUpdate(update, {
-          database,
-          sendMessage,
-          editMessage,
-          answerCallback,
-          allowedChatId: normalizedAllowedChatId,
-          pendingInteractions,
-        });
-        offset = Math.max(offset, update.update_id + 1);
-      }
+      offset = await processTelegramUpdates(updates, {
+        offset,
+        database,
+        sendMessage,
+        editMessage,
+        answerCallback,
+        allowedChatId: normalizedAllowedChatId,
+        pendingInteractions,
+        logger,
+      });
     }
   } finally {
     database.close();
