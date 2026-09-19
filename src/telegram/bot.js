@@ -49,7 +49,7 @@ export async function handleTelegramUpdate(
     )) {
       return { status: "ignored" };
     }
-    if (callbackQuery.data?.startsWith("sale:marketplace:")) {
+    if (callbackQuery.data?.startsWith("sale:listing:")) {
       return handleSaleMarketplaceCallback({
         database,
         callbackQuery,
@@ -79,9 +79,12 @@ export async function handleTelegramUpdate(
   }
 
   const pendingResult = await handlePendingSaleMessage({
+    database,
     message,
     pendingInteractions,
     sendMessage,
+    editMessage,
+    now,
   });
   if (pendingResult !== null) {
     return pendingResult;

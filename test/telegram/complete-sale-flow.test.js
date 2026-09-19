@@ -99,11 +99,11 @@ function completeSaleCallback(inventoryCode, chatId = 123) {
   };
 }
 
-function marketplaceCallback(marketplace, chatId = 123) {
+function saleListingCallback(saleListingId, chatId = 123) {
   return {
     callback_query: {
-      id: `marketplace-${marketplace}`,
-      data: `sale:marketplace:${marketplace}`,
+      id: `sale-listing-${saleListingId}`,
+      data: `sale:listing:${saleListingId}`,
       message: { chat: { id: chatId }, message_id: 88 },
     },
   };
@@ -169,8 +169,57 @@ test("stores an in-memory awaiting-price interaction", async () => withDatabase(
   });
 }));
 
-test("accepts a valid sale price and asks for marketplace", async () => withDatabase(async (database) => {
+test("one active SaleListing completes immediately after a valid price", async () => withDatabase(async (database) => {
   const inventory = createInventoryFixture(database);
+  const saleListing = createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "daangn",
+    askingPriceKrw: 80000,
+    listedAt: "2026-09-10T00:00:00Z",
+  });
+  const recorder = telegramRecorder();
+  const pending = createPendingInteractionStore();
+  await begin(database, inventory, recorder, pending);
+
+  const result = await enterPrice(database, "75000", recorder, pending);
+
+  const sale = findSaleByInventoryItemId(database, inventory.id);
+  assert.equal(result.status, "sale_completed");
+  assert.equal(sale.saleListingId, saleListing.id);
+  assert.equal(sale.marketplace, "daangn");
+  assert.equal(pending.has(123), false);
+}));
+
+test("one active SaleListing does not show marketplace selection", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "daangn",
+    askingPriceKrw: 80000,
+    listedAt: "2026-09-10T00:00:00Z",
+  });
+  const recorder = telegramRecorder();
+  const pending = createPendingInteractionStore();
+  await begin(database, inventory, recorder, pending);
+  await enterPrice(database, "75000", recorder, pending);
+
+  assert.equal(recorder.messages.some(({ text }) => text === SALE_MARKETPLACE_PROMPT), false);
+}));
+
+test("two active SaleListings ask only with their marketplaces", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const daangn = createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "daangn",
+    askingPriceKrw: 80000,
+    listedAt: "2026-09-10T00:00:00Z",
+  });
+  const bunjang = createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "bunjang",
+    askingPriceKrw: 85000,
+    listedAt: "2026-09-11T00:00:00Z",
+  });
   const recorder = telegramRecorder();
   const pending = createPendingInteractionStore();
   await begin(database, inventory, recorder, pending);
@@ -179,28 +228,66 @@ test("accepts a valid sale price and asks for marketplace", async () => withData
 
   assert.deepEqual(result, { status: "awaiting_sale_marketplace" });
   assert.equal(pending.get(123).step, SALE_INPUT_STEPS.MARKETPLACE);
-  assert.equal(pending.get(123).salePriceKrw, 75000);
-  assert.equal(recorder.messages.at(-1).text, SALE_MARKETPLACE_PROMPT);
+  assert.deepEqual(pending.get(123).saleListingIds, [daangn.id, bunjang.id]);
+  const prompt = recorder.messages.at(-1);
+  assert.equal(prompt.text, SALE_MARKETPLACE_PROMPT);
+  assert.deepEqual(prompt.replyMarkup.inline_keyboard.flat(), [
+    { text: "당근", callback_data: `sale:listing:${daangn.id}` },
+    { text: "번개장터", callback_data: `sale:listing:${bunjang.id}` },
+  ]);
 }));
 
-test("offers every marketplace with Korean labels", async () => withDatabase(async (database) => {
+test("duplicate marketplace listings are distinguished by asking price", async () => withDatabase(async (database) => {
   const inventory = createInventoryFixture(database);
+  const first = createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "daangn",
+    askingPriceKrw: 80000,
+    listedAt: "2026-09-10T00:00:00Z",
+  });
+  const second = createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "daangn",
+    askingPriceKrw: 90000,
+    listedAt: "2026-09-11T00:00:00Z",
+  });
   const recorder = telegramRecorder();
   const pending = createPendingInteractionStore();
   await begin(database, inventory, recorder, pending);
   await enterPrice(database, "75000", recorder, pending);
 
-  const buttons = recorder.messages.at(-1).replyMarkup.inline_keyboard.flat();
-  assert.deepEqual(buttons.map(({ text }) => text), [
-    "당근",
-    "번개장터",
-    "중고나라",
-    "직거래",
-    "기타",
+  assert.deepEqual(recorder.messages.at(-1).replyMarkup.inline_keyboard.flat(), [
+    { text: "당근 (80,000원)", callback_data: `sale:listing:${first.id}` },
+    { text: "당근 (90,000원)", callback_data: `sale:listing:${second.id}` },
   ]);
-  assert.ok(buttons.every(({ callback_data: data }) => (
-    /^sale:marketplace:[A-Z]+$/.test(data)
-  )));
+}));
+
+test("text during marketplace selection repeats the actual listing choices", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const first = createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "daangn",
+    askingPriceKrw: 80000,
+    listedAt: "2026-09-10T00:00:00Z",
+  });
+  const second = createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "bunjang",
+    askingPriceKrw: 85000,
+    listedAt: "2026-09-11T00:00:00Z",
+  });
+  const recorder = telegramRecorder();
+  const pending = createPendingInteractionStore();
+  await begin(database, inventory, recorder, pending);
+  await enterPrice(database, "75000", recorder, pending);
+
+  const result = await enterPrice(database, "당근", recorder, pending);
+
+  assert.deepEqual(result, { status: "awaiting_sale_marketplace" });
+  assert.deepEqual(recorder.messages.at(-1).replyMarkup.inline_keyboard.flat(), [
+    { text: "당근", callback_data: `sale:listing:${first.id}` },
+    { text: "번개장터", callback_data: `sale:listing:${second.id}` },
+  ]);
 }));
 
 for (const invalidPrice of ["-1", "가격", "1.5", "   "]) {
@@ -226,16 +313,22 @@ test("allows a zero sale price", async () => withDatabase(async (database) => {
 
   await enterPrice(database, "0", recorder, pending);
 
-  assert.equal(pending.get(123).salePriceKrw, 0);
+  assert.equal(findSaleByInventoryItemId(database, inventory.id).salePriceKrw, 0);
 }));
 
-test("selecting Daangn completes the sale through completeSale", async () => withDatabase(async (database) => {
+test("selecting one of multiple listings passes that exact listing to completeSale", async () => withDatabase(async (database) => {
   const inventory = createInventoryFixture(database);
-  const saleListing = createSaleListing(database, {
+  createSaleListing(database, {
     inventoryItemId: inventory.id,
     marketplace: "daangn",
     askingPriceKrw: 80000,
     listedAt: "2026-09-10T00:00:00Z",
+  });
+  const saleListing = createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "bunjang",
+    askingPriceKrw: 85000,
+    listedAt: "2026-09-11T00:00:00Z",
   });
   const recorder = telegramRecorder();
   const pending = createPendingInteractionStore();
@@ -243,14 +336,14 @@ test("selecting Daangn completes the sale through completeSale", async () => wit
   await enterPrice(database, "75000", recorder, pending);
 
   const result = await handleTelegramUpdate(
-    marketplaceCallback("DAANGN"),
+    saleListingCallback(saleListing.id),
     dependencies(database, recorder, pending),
   );
 
   const sale = findSaleByInventoryItemId(database, inventory.id);
   assert.equal(result.status, "sale_completed");
   assert.equal(sale.salePriceKrw, 75000);
-  assert.equal(sale.marketplace, "daangn");
+  assert.equal(sale.marketplace, "bunjang");
   assert.equal(sale.soldAt, "2026-09-15T12:00:00.000Z");
   assert.equal(sale.saleListingId, saleListing.id);
 }));
@@ -263,12 +356,18 @@ test("completing a sale changes Inventory to SOLD and closes its listing", async
     askingPriceKrw: 80000,
     listedAt: "2026-09-10T00:00:00Z",
   });
+  createSaleListing(database, {
+    inventoryItemId: inventory.id,
+    marketplace: "bunjang",
+    askingPriceKrw: 85000,
+    listedAt: "2026-09-11T00:00:00Z",
+  });
   const recorder = telegramRecorder();
   const pending = createPendingInteractionStore();
   await begin(database, inventory, recorder, pending);
   await enterPrice(database, "75000", recorder, pending);
   await handleTelegramUpdate(
-    marketplaceCallback("DAANGN"),
+    saleListingCallback(saleListing.id),
     dependencies(database, recorder, pending),
   );
 
@@ -279,19 +378,15 @@ test("completing a sale changes Inventory to SOLD and closes its listing", async
   );
 }));
 
-test("selecting direct sale works without a SaleListing", async () => withDatabase(async (database) => {
+test("no active SaleListing completes immediately as a direct sale", async () => withDatabase(async (database) => {
   const inventory = createInventoryFixture(database);
   const recorder = telegramRecorder();
   const pending = createPendingInteractionStore();
   await begin(database, inventory, recorder, pending);
-  await enterPrice(database, "70000", recorder, pending);
-
-  await handleTelegramUpdate(
-    marketplaceCallback("DIRECT"),
-    dependencies(database, recorder, pending),
-  );
+  const result = await enterPrice(database, "70000", recorder, pending);
 
   const sale = findSaleByInventoryItemId(database, inventory.id);
+  assert.equal(result.status, "sale_completed");
   assert.equal(sale.marketplace, "direct");
   assert.equal(sale.saleListingId, null);
 }));
@@ -302,15 +397,11 @@ test("sends a Korean success message and refreshes the original detail", async (
   const pending = createPendingInteractionStore();
   await begin(database, inventory, recorder, pending);
   await enterPrice(database, "75000", recorder, pending);
-  await handleTelegramUpdate(
-    marketplaceCallback("DAANGN"),
-    dependencies(database, recorder, pending),
-  );
 
   assert.equal(recorder.messages.at(-1).text, [
     "판매 완료했습니다.",
     "판매가: 75,000원",
-    "판매처: 당근",
+    "판매처: 직거래",
   ].join("\n"));
   assert.equal(recorder.edits[0].messageId, 77);
   assert.match(recorder.edits[0].text, /상태: 판매 완료/);

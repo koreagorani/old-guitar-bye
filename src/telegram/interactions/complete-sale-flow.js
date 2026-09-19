@@ -1,6 +1,9 @@
 import { getInventoryDetail } from "../../application/inventory/get-inventory-detail.js";
 import { completeSale } from "../../application/sales/complete-sale.js";
-import { listSaleListingsByInventoryItemId } from "../../repositories/sale-listing-repository.js";
+import {
+  findSaleListingById,
+  listSaleListingsByInventoryItemId,
+} from "../../repositories/sale-listing-repository.js";
 import { renderInventoryActions } from "../render/inventory-action-renderer.js";
 import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
@@ -17,28 +20,42 @@ export const SALE_INPUT_STEPS = Object.freeze({
   MARKETPLACE: "AWAITING_SALE_MARKETPLACE",
 });
 
-const MARKETPLACES = Object.freeze({
-  DAANGN: Object.freeze({ value: "daangn", label: "당근" }),
-  BUNJANG: Object.freeze({ value: "bunjang", label: "번개장터" }),
-  JOONGGONARA: Object.freeze({ value: "joonggonara", label: "중고나라" }),
-  DIRECT: Object.freeze({ value: "direct", label: "직거래" }),
-  OTHER: Object.freeze({ value: "other", label: "기타" }),
+const MARKETPLACE_LABELS = Object.freeze({
+  daangn: "당근",
+  bunjang: "번개장터",
+  joonggonara: "중고나라",
+  direct: "직거래",
+  other: "기타",
 });
 
 const krwFormatter = new Intl.NumberFormat("ko-KR");
 
-function saleMarketplaceKeyboard() {
-  const button = ([id, marketplace]) => ({
-    text: marketplace.label,
-    callback_data: `sale:marketplace:${id}`,
+function marketplaceLabel(marketplace) {
+  return MARKETPLACE_LABELS[marketplace.toLowerCase()] ?? marketplace;
+}
+
+function saleListingKeyboard(saleListings) {
+  const marketplaceCounts = new Map();
+  for (const listing of saleListings) {
+    const marketplace = listing.marketplace.toLowerCase();
+    marketplaceCounts.set(marketplace, (marketplaceCounts.get(marketplace) ?? 0) + 1);
+  }
+
+  const buttons = saleListings.map((listing) => {
+    const marketplace = listing.marketplace.toLowerCase();
+    const label = marketplaceLabel(marketplace);
+    return {
+      text: marketplaceCounts.get(marketplace) > 1
+        ? `${label} (${krwFormatter.format(listing.askingPriceKrw)}원)`
+        : label,
+      callback_data: `sale:listing:${listing.id}`,
+    };
   });
-  const entries = Object.entries(MARKETPLACES);
   return {
-    inline_keyboard: [
-      entries.slice(0, 2).map(button),
-      entries.slice(2, 4).map(button),
-      entries.slice(4).map(button),
-    ],
+    inline_keyboard: Array.from(
+      { length: Math.ceil(buttons.length / 2) },
+      (_, index) => buttons.slice(index * 2, index * 2 + 2),
+    ),
   };
 }
 
@@ -50,23 +67,21 @@ function parseSalePrice(text) {
   return Number.isSafeInteger(price) ? price : null;
 }
 
-export function parseSaleMarketplaceCallbackData(callbackData) {
+export function parseSaleListingCallbackData(callbackData) {
   if (typeof callbackData !== "string") {
     return null;
   }
-  const match = /^sale:marketplace:([A-Z]+)$/.exec(callbackData);
-  if (!match || !Object.hasOwn(MARKETPLACES, match[1])) {
+  const match = /^sale:listing:([1-9]\d*)$/.exec(callbackData);
+  if (!match) {
     return null;
   }
-  return MARKETPLACES[match[1]];
+  const saleListingId = Number(match[1]);
+  return Number.isSafeInteger(saleListingId) ? saleListingId : null;
 }
 
-function matchingSaleListing(database, inventoryItemId, marketplace) {
+function activeSaleListings(database, inventoryItemId) {
   return listSaleListingsByInventoryItemId(database, inventoryItemId)
-    .find((listing) => (
-      listing.closedAt === null
-      && listing.marketplace.toLowerCase() === marketplace
-    )) ?? null;
+    .filter((listing) => listing.closedAt === null);
 }
 
 function renderUpdatedInventory(database, inventoryItemId, inventoryCode) {
@@ -77,6 +92,72 @@ function renderUpdatedInventory(database, inventoryItemId, inventoryCode) {
       renderInventoryActions(detail.inventory.state),
       inventoryCode,
     ),
+  };
+}
+
+async function finishSale({
+  database,
+  interaction,
+  saleListing,
+  marketplace,
+  marketplaceDisplay,
+  pendingInteractions,
+  chatId,
+  sendMessage,
+  editMessage,
+  now,
+  answerCallback,
+  callbackQueryId,
+}) {
+  let completed;
+  try {
+    completed = completeSale(database, {
+      inventoryItemId: interaction.inventoryItemId,
+      saleListingId: saleListing?.id ?? null,
+      marketplace,
+      salePriceKrw: interaction.salePriceKrw,
+      soldAt: now().toISOString(),
+      note: null,
+    });
+  } catch (error) {
+    if (!error.message.startsWith("Invalid inventory transition:")) {
+      throw error;
+    }
+    if (answerCallback && callbackQueryId) {
+      await answerCallback({ callbackQueryId, text: SALE_FAILED_MESSAGE });
+    } else {
+      await sendMessage({ chatId, text: SALE_FAILED_MESSAGE });
+    }
+    return { status: "invalid_state" };
+  }
+
+  pendingInteractions.delete(chatId);
+  const updated = renderUpdatedInventory(
+    database,
+    interaction.inventoryItemId,
+    interaction.inventoryCode,
+  );
+  await editMessage({
+    chatId,
+    messageId: interaction.detailMessageId,
+    ...updated,
+  });
+  await sendMessage({
+    chatId,
+    text: [
+      "판매 완료했습니다.",
+      `판매가: ${krwFormatter.format(interaction.salePriceKrw)}원`,
+      `판매처: ${marketplaceDisplay}`,
+    ].join("\n"),
+  });
+  if (answerCallback && callbackQueryId) {
+    await answerCallback({ callbackQueryId });
+  }
+
+  return {
+    status: "sale_completed",
+    saleId: completed.sale.id,
+    inventoryItemId: interaction.inventoryItemId,
   };
 }
 
@@ -117,9 +198,12 @@ export async function beginCompleteSaleFlow({
 }
 
 export async function handlePendingSaleMessage({
+  database,
   message,
   pendingInteractions,
   sendMessage,
+  editMessage,
+  now = () => new Date(),
 }) {
   const interaction = pendingInteractions.get(message.chat.id);
   if (!interaction || interaction.type !== "complete_sale") {
@@ -133,10 +217,14 @@ export async function handlePendingSaleMessage({
   }
 
   if (interaction.step !== SALE_INPUT_STEPS.PRICE) {
+    const offeredListings = interaction.saleListingIds
+      .map((id) => findSaleListingById(database, id))
+      .filter((listing) => listing?.closedAt === null
+        && listing.inventoryItemId === interaction.inventoryItemId);
     await sendMessage({
       chatId: message.chat.id,
       text: SALE_MARKETPLACE_PROMPT,
-      replyMarkup: saleMarketplaceKeyboard(),
+      replyMarkup: saleListingKeyboard(offeredListings),
     });
     return { status: "awaiting_sale_marketplace" };
   }
@@ -150,15 +238,52 @@ export async function handlePendingSaleMessage({
     return { status: "invalid_sale_price" };
   }
 
-  pendingInteractions.set(message.chat.id, {
+  const pricedInteraction = {
     ...interaction,
-    step: SALE_INPUT_STEPS.MARKETPLACE,
     salePriceKrw,
+  };
+  const activeListings = activeSaleListings(database, interaction.inventoryItemId);
+
+  if (activeListings.length === 0) {
+    return finishSale({
+      database,
+      interaction: pricedInteraction,
+      saleListing: null,
+      marketplace: "direct",
+      marketplaceDisplay: MARKETPLACE_LABELS.direct,
+      pendingInteractions,
+      chatId: message.chat.id,
+      sendMessage,
+      editMessage,
+      now,
+    });
+  }
+
+  if (activeListings.length === 1) {
+    const [saleListing] = activeListings;
+    return finishSale({
+      database,
+      interaction: pricedInteraction,
+      saleListing,
+      marketplace: saleListing.marketplace,
+      marketplaceDisplay: marketplaceLabel(saleListing.marketplace),
+      pendingInteractions,
+      chatId: message.chat.id,
+      sendMessage,
+      editMessage,
+      now,
+    });
+  }
+
+  pendingInteractions.set(message.chat.id, {
+    ...pricedInteraction,
+    step: SALE_INPUT_STEPS.MARKETPLACE,
+    saleListingIds: activeListings.map(({ id }) => id),
   });
   await sendMessage({
     chatId: message.chat.id,
     text: SALE_MARKETPLACE_PROMPT,
-    replyMarkup: saleMarketplaceKeyboard(),
+    replyMarkup: saleListingKeyboard(activeListings),
   });
   return { status: "awaiting_sale_marketplace" };
 }
@@ -172,11 +297,12 @@ export async function handleSaleMarketplaceCallback({
   answerCallback,
   now = () => new Date(),
 }) {
-  const marketplace = parseSaleMarketplaceCallbackData(callbackQuery.data);
+  const saleListingId = parseSaleListingCallbackData(callbackQuery.data);
   const chatId = callbackQuery.message.chat.id;
   const interaction = pendingInteractions.get(chatId);
-  if (!marketplace || interaction?.type !== "complete_sale"
-    || interaction.step !== SALE_INPUT_STEPS.MARKETPLACE) {
+  if (!saleListingId || interaction?.type !== "complete_sale"
+    || interaction.step !== SALE_INPUT_STEPS.MARKETPLACE
+    || !interaction.saleListingIds.includes(saleListingId)) {
     await answerCallback({
       callbackQueryId: callbackQuery.id,
       text: NO_PENDING_SALE_MESSAGE,
@@ -184,56 +310,28 @@ export async function handleSaleMarketplaceCallback({
     return { status: "invalid_sale_marketplace" };
   }
 
-  const saleListing = matchingSaleListing(
-    database,
-    interaction.inventoryItemId,
-    marketplace.value,
-  );
-  let completed;
-  try {
-    completed = completeSale(database, {
-      inventoryItemId: interaction.inventoryItemId,
-      saleListingId: saleListing?.id ?? null,
-      marketplace: marketplace.value,
-      salePriceKrw: interaction.salePriceKrw,
-      soldAt: now().toISOString(),
-      note: null,
-    });
-  } catch (error) {
-    if (!error.message.startsWith("Invalid inventory transition:")) {
-      throw error;
-    }
+  const saleListing = findSaleListingById(database, saleListingId);
+  if (!saleListing || saleListing.closedAt !== null
+    || saleListing.inventoryItemId !== interaction.inventoryItemId) {
     await answerCallback({
       callbackQueryId: callbackQuery.id,
-      text: SALE_FAILED_MESSAGE,
+      text: NO_PENDING_SALE_MESSAGE,
     });
-    return { status: "invalid_state" };
+    return { status: "invalid_sale_marketplace" };
   }
 
-  pendingInteractions.delete(chatId);
-  const updated = renderUpdatedInventory(
+  return finishSale({
     database,
-    interaction.inventoryItemId,
-    interaction.inventoryCode,
-  );
-  await editMessage({
+    interaction,
+    saleListing,
+    marketplace: saleListing.marketplace,
+    marketplaceDisplay: marketplaceLabel(saleListing.marketplace),
+    pendingInteractions,
     chatId,
-    messageId: interaction.detailMessageId,
-    ...updated,
+    sendMessage,
+    editMessage,
+    now,
+    answerCallback,
+    callbackQueryId: callbackQuery.id,
   });
-  await sendMessage({
-    chatId,
-    text: [
-      "판매 완료했습니다.",
-      `판매가: ${krwFormatter.format(interaction.salePriceKrw)}원`,
-      `판매처: ${marketplace.label}`,
-    ].join("\n"),
-  });
-  await answerCallback({ callbackQueryId: callbackQuery.id });
-
-  return {
-    status: "sale_completed",
-    saleId: completed.sale.id,
-    inventoryItemId: interaction.inventoryItemId,
-  };
 }
