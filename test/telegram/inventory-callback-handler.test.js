@@ -138,46 +138,15 @@ test("finish_repair changes REPAIRING to FOR_SALE", async () => withDatabase(asy
   assert.equal(recorder.answers[0].text, CALLBACK_MESSAGES.finish_repair);
 }));
 
-test("view_detail does not change inventory state", async () => withDatabase(async (database) => {
-  const inventory = createInventoryFixture(database);
-  const { result } = await handle(
-    database,
-    callbackQuery("view_detail", inventory.inventoryCode),
-  );
-
-  assert.equal(result.status, "shown");
-  assert.equal(findInventoryItemByCode(database, inventory.inventoryCode).state, "IN_STOCK");
-}));
-
-test("acknowledges view_detail even when its message edit fails", async () => withDatabase(async (database) => {
-  const inventory = createInventoryFixture(database);
-  const answers = [];
-
-  await assert.rejects(
-    handleTelegramUpdate(
-      { callback_query: callbackQuery("view_detail", inventory.inventoryCode) },
-      {
-        database,
-        editMessage: async () => { throw new Error("Telegram edit failed"); },
-        answerCallback: async (answer) => answers.push(answer),
-        allowedChatId: "123",
-      },
-    ),
-    /Telegram edit failed/,
-  );
-
-  assert.deepEqual(answers, [{ callbackQueryId: "callback-view_detail" }]);
-}));
-
 test("isolates a failed callback update and continues with finish_repair", async () => withDatabase(async (database) => {
-  const inventory = createInventoryFixture(database, "REPAIRING");
+  const inventory = createInventoryFixture(database);
   const answers = [];
   const logged = [];
   let editCalls = 0;
   const updates = [
     {
       update_id: 10,
-      callback_query: callbackQuery("view_detail", inventory.inventoryCode),
+      callback_query: callbackQuery("start_repair", inventory.inventoryCode),
     },
     {
       update_id: 11,
@@ -206,7 +175,7 @@ test("isolates a failed callback update and continues with finish_repair", async
   assert.equal(logged[0][1].updateId, 10);
   assert.match(logged[0][1].error.message, /Telegram edit failed/);
   assert.deepEqual(answers, [
-    { callbackQueryId: "callback-view_detail" },
+    { callbackQueryId: "callback-start_repair" },
     {
       callbackQueryId: "callback-finish_repair",
       text: CALLBACK_MESSAGES.finish_repair,

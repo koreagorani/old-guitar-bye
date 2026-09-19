@@ -136,7 +136,7 @@ export async function handleInventoryCallback({
   );
 
   return {
-    status: action === "view_detail" ? "shown" : "updated",
+    status: "updated",
     action,
     inventoryItemId: currentInventory.id,
   };

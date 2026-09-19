@@ -3,7 +3,6 @@ const INVENTORY_ACTIONS = new Set([
   "mark_for_sale",
   "finish_repair",
   "complete_sale",
-  "view_detail",
   "add_repair_log",
   "add_expense",
 ]);

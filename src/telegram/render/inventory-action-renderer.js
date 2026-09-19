@@ -13,7 +13,6 @@ const PRIMARY_ACTIONS_BY_STATE = Object.freeze({
 });
 
 const SECONDARY_ACTIONS = Object.freeze([
-  Object.freeze({ id: "view_detail", label: "상세 보기" }),
   Object.freeze({ id: "add_repair_log", label: "수리 기록 추가" }),
   Object.freeze({ id: "add_expense", label: "비용 추가" }),
 ]);

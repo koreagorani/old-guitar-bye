@@ -185,7 +185,6 @@ test("includes state-specific and common buttons", async () => withDatabase(asyn
   assert.deepEqual(buttons.map(({ text }) => text), [
     "수리 시작",
     "바로 판매",
-    "상세 보기",
     "수리 기록 추가",
     "비용 추가",
   ]);

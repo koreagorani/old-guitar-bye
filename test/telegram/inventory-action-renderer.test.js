@@ -51,7 +51,6 @@ test("uses English action ids", () => {
 });
 
 const expectedSecondaryActions = [
-  { id: "view_detail", label: "상세 보기" },
   { id: "add_repair_log", label: "수리 기록 추가" },
   { id: "add_expense", label: "비용 추가" },
 ];
@@ -67,7 +66,7 @@ for (const action of expectedSecondaryActions) {
   });
 }
 
-test("keeps read and correction actions available after sale", () => {
+test("keeps correction actions available after sale", () => {
   assert.deepEqual(
     renderInventoryActions("SOLD").secondaryActions,
     expectedSecondaryActions,
@@ -91,5 +90,5 @@ test("returns fresh action objects for each render", () => {
   first.secondaryActions[0].label = "변경됨";
 
   assert.equal(second.primaryActions[0].label, "수리 시작");
-  assert.equal(second.secondaryActions[0].label, "상세 보기");
+  assert.equal(second.secondaryActions[0].label, "수리 기록 추가");
 });

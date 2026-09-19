@@ -10,7 +10,6 @@ const supportedActions = [
   "mark_for_sale",
   "finish_repair",
   "complete_sale",
-  "view_detail",
   "add_repair_log",
   "add_expense",
 ];
@@ -69,6 +68,13 @@ test("rejects an unsupported inventory action", () => {
   assert.throws(
     () => parseInventoryCallbackData("inventory:delete_inventory:G-0003"),
     new Error("Unsupported inventory action: delete_inventory"),
+  );
+});
+
+test("rejects the removed view_detail action", () => {
+  assert.throws(
+    () => parseInventoryCallbackData("inventory:view_detail:G-0003"),
+    new Error("Unsupported inventory action: view_detail"),
   );
 });
 
