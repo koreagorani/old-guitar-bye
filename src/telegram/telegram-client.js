@@ -96,3 +96,22 @@ export function getTelegramUpdates({
     fetchImpl,
   );
 }
+
+export function setTelegramCommands({
+  token,
+  commands,
+  fetchImpl = globalThis.fetch,
+}) {
+  if (!Array.isArray(commands) || commands.length === 0) {
+    throw new TypeError("commands must be a non-empty array");
+  }
+  for (const command of commands) {
+    if (command === null || typeof command !== "object"
+      || Array.isArray(command)) {
+      throw new TypeError("each command must be an object");
+    }
+    assertNonEmptyString(command.command, "command.command");
+    assertNonEmptyString(command.description, "command.description");
+  }
+  return callTelegramApi(token, "setMyCommands", { commands }, fetchImpl);
+}

@@ -26,9 +26,27 @@ import {
   editTelegramMessageText,
   getTelegramUpdates,
   sendTelegramMessage,
+  setTelegramCommands,
 } from "./telegram-client.js";
 
 export const START_MESSAGE = "기타 재고 관리 봇입니다.";
+export const HELP_MESSAGE = [
+  "🎸 기타 관리 봇",
+  "",
+  "사용 가능한 명령:",
+  "",
+  "/inventory",
+  "현재 보유 기타 보기",
+  "",
+  "/help",
+  "사용 방법 보기",
+].join("\n");
+
+export const TELEGRAM_COMMANDS = Object.freeze([
+  Object.freeze({ command: "start", description: "봇 안내" }),
+  Object.freeze({ command: "inventory", description: "현재 재고 목록 조회" }),
+  Object.freeze({ command: "help", description: "사용 가능한 기능 안내" }),
+]);
 
 function commandName(text) {
   if (typeof text !== "string") {
@@ -187,6 +205,10 @@ export async function handleTelegramUpdate(
       sendMessage,
     });
   }
+  if (name === "/help") {
+    await sendMessage({ chatId: message.chat.id, text: HELP_MESSAGE });
+    return { status: "helped" };
+  }
 
   return { status: "ignored" };
 }
@@ -258,6 +280,11 @@ export async function runBot({
   });
 
   try {
+    await setTelegramCommands({
+      token,
+      commands: TELEGRAM_COMMANDS,
+      fetchImpl,
+    });
     while (!signal?.aborted) {
       const updates = await getTelegramUpdates({
         token,

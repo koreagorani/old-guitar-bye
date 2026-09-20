@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
   handleTelegramUpdate,
   runBot,
   START_MESSAGE,
+  TELEGRAM_COMMANDS,
 } from "../../src/telegram/bot.js";
 import {
   isAllowedTelegramChat,
@@ -124,4 +128,36 @@ test("rejects a malformed TELEGRAM_ALLOWED_CHAT_ID", async () => {
     }),
     /TELEGRAM_ALLOWED_CHAT_ID must be a safe integer or integer string/,
   );
+});
+
+test("registers the command menu when the bot starts", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "telegram-command-menu-"));
+  const databasePath = join(directory, "bot.sqlite");
+  const requests = [];
+  try {
+    await runBot({
+      token: "test-token",
+      databasePath,
+      allowedChatId: "123",
+      signal: { aborted: true },
+      fetchImpl: async (url, options) => {
+        requests.push({ url, options });
+        return {
+          ok: true,
+          json: async () => ({ ok: true, result: true }),
+        };
+      },
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+
+  assert.equal(requests.length, 1);
+  assert.equal(
+    requests[0].url,
+    "https://api.telegram.org/bottest-token/setMyCommands",
+  );
+  assert.deepEqual(JSON.parse(requests[0].options.body), {
+    commands: TELEGRAM_COMMANDS,
+  });
 });

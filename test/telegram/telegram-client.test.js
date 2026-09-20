@@ -5,6 +5,7 @@ import {
   answerTelegramCallbackQuery,
   editTelegramMessageText,
   getTelegramUpdates,
+  setTelegramCommands,
 } from "../../src/telegram/telegram-client.js";
 
 function fetchRecorder(result = true) {
@@ -118,4 +119,25 @@ test("polls both messages and callback queries", async () => {
     timeout: 30,
     allowed_updates: ["message", "callback_query"],
   });
+});
+
+test("sets the Telegram command menu", async () => {
+  const recorder = fetchRecorder(true);
+  const commands = [
+    { command: "start", description: "봇 안내" },
+    { command: "inventory", description: "현재 재고 목록 조회" },
+    { command: "help", description: "사용 가능한 기능 안내" },
+  ];
+
+  await setTelegramCommands({
+    token: "test-token",
+    commands,
+    fetchImpl: recorder.fetchImpl,
+  });
+
+  assert.equal(
+    recorder.requests[0].url,
+    "https://api.telegram.org/bottest-token/setMyCommands",
+  );
+  assert.deepEqual(JSON.parse(recorder.requests[0].options.body), { commands });
 });

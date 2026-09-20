@@ -7,6 +7,7 @@ import test from "node:test";
 import { applyMigrations, openDatabase } from "../../scripts/migrate.js";
 import { getInventoryDetail } from "../../src/application/inventory/get-inventory-detail.js";
 import {
+  HELP_MESSAGE,
   handleTelegramUpdate,
   START_MESSAGE,
 } from "../../src/telegram/bot.js";
@@ -99,6 +100,25 @@ test("responds to /start with a short Korean introduction", async () => {
   assert.deepEqual(recorder.messages, [
     { chatId: 123, text: START_MESSAGE },
   ]);
+});
+
+test("responds to /help with concise Korean usage guidance", async () => {
+  const recorder = messageRecorder();
+  const result = await handleTelegramUpdate(
+    { message: { chat: { id: 123 }, text: "/help" } },
+    {
+      database: null,
+      sendMessage: recorder.sendMessage,
+      allowedChatId: "123",
+    },
+  );
+
+  assert.deepEqual(result, { status: "helped" });
+  assert.deepEqual(recorder.messages, [
+    { chatId: 123, text: HELP_MESSAGE },
+  ]);
+  assert.match(HELP_MESSAGE, /\/inventory\n현재 보유 기타 보기/);
+  assert.match(HELP_MESSAGE, /\/help\n사용 방법 보기/);
 });
 
 test("parses /inventory with an inventory code", () => {
