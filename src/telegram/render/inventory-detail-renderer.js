@@ -1,13 +1,5 @@
 import { inventoryStateLabel } from "./inventory-state-label.js";
 
-const ACQUISITION_STATE_LABELS = Object.freeze({
-  FOUND: "매물 발견",
-  BUYING: "구매 진행",
-  RECEIVED: "입고 완료",
-  IGNORED: "무시",
-  CANCELLED: "거래 취소",
-});
-
 const REPAIR_TYPE_LABELS = Object.freeze({
   CLEANING: "세척",
   STRING_CHANGE: "줄 교체",
@@ -118,14 +110,13 @@ export function renderInventoryDetail(detail) {
   assertArray(detail.expenses, "detail.expenses");
   assertArray(detail.saleListings, "detail.saleListings");
 
-  const { inventory, acquisition, cost, sale } = detail;
+  const { inventory, cost, sale } = detail;
   const name = [inventory.inventoryCode, inventory.brand, inventory.modelName]
     .filter((value) => value !== null && value !== undefined && value !== "")
     .join(" ");
   const lines = [
     `🎸 ${name}`,
     `상태: ${inventoryStateLabel(inventory.state)}`,
-    `매입 상태: ${labelFor(ACQUISITION_STATE_LABELS, acquisition.status, "acquisition state")}`,
     "",
     `매입가: ${formatKrw(cost.purchasePriceKrw, "cost.purchasePriceKrw")}`,
     `수리비: ${formatKrw(cost.repairCostTotalKrw, "cost.repairCostTotalKrw")}`,

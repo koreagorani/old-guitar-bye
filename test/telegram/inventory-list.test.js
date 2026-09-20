@@ -227,7 +227,7 @@ test("selecting a list item edits the list into the existing detail screen", asy
   assert.match(telegram.edits[0].text, /상태: 수리 중/);
   assert.deepEqual(
     telegram.edits[0].replyMarkup.inline_keyboard[0].map(({ text }) => text),
-    ["수리 완료"],
+    ["수리", "비용"],
   );
   assert.deepEqual(telegram.answers, [{ callbackQueryId: "open-inventory", text: null }]);
 }));

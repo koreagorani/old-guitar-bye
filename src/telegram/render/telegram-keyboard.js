@@ -28,10 +28,11 @@ export function buildInventoryInlineKeyboard(actions, inventoryCode) {
 
   const rows = [];
   if (actions.primaryActions.length > 0) {
-    rows.push(actions.primaryActions.map((action) => toButton(
-      action,
-      inventoryCode,
-    )));
+    for (let index = 0; index < actions.primaryActions.length; index += 2) {
+      rows.push(actions.primaryActions.slice(index, index + 2).map(
+        (action) => toButton(action, inventoryCode),
+      ));
+    }
   }
   if (actions.secondaryActions.length > 0) {
     const recordActions = actions.secondaryActions.filter(

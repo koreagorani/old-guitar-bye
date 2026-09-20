@@ -196,7 +196,7 @@ test("renders the latest detail and buttons after a state change", async () => w
   assert.match(recorder.edits[0].text, /상태: 수리 중/);
   assert.deepEqual(
     recorder.edits[0].replyMarkup.inline_keyboard[0].map(({ text }) => text),
-    ["수리 완료"],
+    ["수리", "비용"],
   );
   assert.equal(recorder.edits[0].messageId, 77);
 }));

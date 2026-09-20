@@ -32,6 +32,12 @@ const NEXT_STATE_BY_ACTION = Object.freeze({
   finish_repair: "FOR_SALE",
 });
 
+const REQUIRED_STATE_BY_ACTION = Object.freeze({
+  start_repair: "IN_STOCK",
+  mark_for_sale: "IN_STOCK",
+  finish_repair: "REPAIRING",
+});
+
 async function acknowledge(answerCallback, callbackQueryId, text) {
   await answerCallback({ callbackQueryId, text });
 }
@@ -117,10 +123,7 @@ export async function handleInventoryCallback({
   let currentInventory = inventory;
   const nextState = NEXT_STATE_BY_ACTION[action];
   if (nextState !== undefined) {
-    const availableActions = renderInventoryActions(inventory.state);
-    const isAvailable = availableActions.primaryActions
-      .some(({ id }) => id === action);
-    if (!isAvailable) {
+    if (inventory.state !== REQUIRED_STATE_BY_ACTION[action]) {
       await acknowledge(
         answerCallback,
         callbackQuery.id,

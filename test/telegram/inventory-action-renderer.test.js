@@ -3,75 +3,51 @@ import test from "node:test";
 
 import { renderInventoryActions } from "../../src/telegram/render/inventory-action-renderer.js";
 
-const expectedPrimaryActions = {
-  IN_STOCK: [
-    { id: "start_repair", label: "수리 시작" },
-    { id: "mark_for_sale", label: "바로 판매" },
-  ],
-  REPAIRING: [
-    { id: "finish_repair", label: "수리 완료" },
-  ],
-  FOR_SALE: [
-    { id: "complete_sale", label: "판매 완료" },
-  ],
-  SOLD: [],
-};
+const inventoryStates = ["IN_STOCK", "REPAIRING", "FOR_SALE", "SOLD"];
 
-for (const [state, primaryActions] of Object.entries(expectedPrimaryActions)) {
-  test(`renders primary actions for ${state}`, () => {
-    assert.deepEqual(
-      renderInventoryActions(state).primaryActions,
-      primaryActions,
-    );
+const expectedPrimaryActions = [
+  { id: "repair", label: "수리" },
+  { id: "expense", label: "비용" },
+  { id: "sale", label: "판매" },
+  { id: "edit", label: "수정" },
+];
+
+const expectedSecondaryActions = [
+  { id: "list", label: "목록으로" },
+];
+
+for (const state of inventoryStates) {
+  test(`renders the top-level menu for ${state}`, () => {
+    assert.deepEqual(renderInventoryActions(state), {
+      primaryActions: expectedPrimaryActions,
+      secondaryActions: expectedSecondaryActions,
+    });
   });
 }
 
-test("renders no primary action for SOLD inventory", () => {
-  assert.deepEqual(renderInventoryActions("SOLD").primaryActions, []);
-});
+test("uses Korean labels", () => {
+  const { primaryActions, secondaryActions } = renderInventoryActions("IN_STOCK");
 
-test("uses Korean labels for every visible action", () => {
-  for (const state of Object.keys(expectedPrimaryActions)) {
-    const { primaryActions, secondaryActions } = renderInventoryActions(state);
-    for (const { label } of [...primaryActions, ...secondaryActions]) {
-      assert.match(label, /[가-힣]/);
-      assert.doesNotMatch(label, /_/);
-    }
+  for (const { label } of [...primaryActions, ...secondaryActions]) {
+    assert.match(label, /[가-힣]/);
   }
 });
 
 test("uses English action ids", () => {
-  for (const state of Object.keys(expectedPrimaryActions)) {
-    const { primaryActions, secondaryActions } = renderInventoryActions(state);
-    for (const { id } of [...primaryActions, ...secondaryActions]) {
-      assert.match(id, /^[a-z]+(?:_[a-z]+)*$/);
-      assert.doesNotMatch(id, /[가-힣]/);
-    }
+  const { primaryActions, secondaryActions } = renderInventoryActions("IN_STOCK");
+
+  for (const { id } of [...primaryActions, ...secondaryActions]) {
+    assert.match(id, /^[a-z]+(?:_[a-z]+)*$/);
   }
 });
 
-const expectedSecondaryActions = [
-  { id: "add_repair_log", label: "수리 기록 추가" },
-  { id: "add_expense", label: "비용 추가" },
-  { id: "list", label: "목록으로" },
-];
+test("does not expose direct lifecycle actions in the top-level menu", () => {
+  const { primaryActions, secondaryActions } = renderInventoryActions("IN_STOCK");
+  const actionIds = [...primaryActions, ...secondaryActions].map(({ id }) => id);
 
-for (const action of expectedSecondaryActions) {
-  test(`includes the common ${action.id} action`, () => {
-    for (const state of Object.keys(expectedPrimaryActions)) {
-      assert.deepEqual(
-        renderInventoryActions(state).secondaryActions,
-        expectedSecondaryActions,
-      );
-    }
-  });
-}
-
-test("keeps correction actions available after sale", () => {
-  assert.deepEqual(
-    renderInventoryActions("SOLD").secondaryActions,
-    expectedSecondaryActions,
-  );
+  assert.deepEqual(actionIds, ["repair", "expense", "sale", "edit", "list"]);
+  assert.ok(!actionIds.includes("start_repair"));
+  assert.ok(!actionIds.includes("mark_for_sale"));
 });
 
 for (const unknownState of ["READY", "", null, undefined]) {
@@ -90,6 +66,6 @@ test("returns fresh action objects for each render", () => {
   first.primaryActions[0].label = "변경됨";
   first.secondaryActions[0].label = "변경됨";
 
-  assert.equal(second.primaryActions[0].label, "수리 시작");
-  assert.equal(second.secondaryActions[0].label, "수리 기록 추가");
+  assert.equal(second.primaryActions[0].label, "수리");
+  assert.equal(second.secondaryActions[0].label, "목록으로");
 });

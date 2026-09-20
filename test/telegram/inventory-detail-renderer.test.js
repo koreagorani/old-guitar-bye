@@ -69,18 +69,13 @@ for (const [state, label] of [
   });
 }
 
-for (const [status, label] of [
-  ["FOUND", "매물 발견"],
-  ["BUYING", "구매 진행"],
-  ["RECEIVED", "입고 완료"],
-  ["IGNORED", "무시"],
-  ["CANCELLED", "거래 취소"],
-]) {
-  test(`renders acquisition ${status} as ${label}`, () => {
+for (const status of ["FOUND", "BUYING", "RECEIVED", "IGNORED", "CANCELLED"]) {
+  test(`omits acquisition status ${status} from the inventory detail screen`, () => {
     const text = renderInventoryDetail(detailFixture({
       acquisition: { status },
     }));
-    assert.match(text, new RegExp(`매입 상태: ${label}`));
+
+    assert.doesNotMatch(text, /매입 상태:/);
     assert.doesNotMatch(text, new RegExp(status));
   });
 }

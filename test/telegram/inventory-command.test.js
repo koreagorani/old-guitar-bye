@@ -171,7 +171,7 @@ test("uses InventoryDetailRenderer output", async () => withDatabase(async (data
   );
 }));
 
-test("includes state-specific and common buttons", async () => withDatabase(async (database) => {
+test("includes the top-level inventory menu", async () => withDatabase(async (database) => {
   const inventory = createInventoryFixture(database);
   const recorder = messageRecorder();
   await handleInventoryCommand({
@@ -183,12 +183,18 @@ test("includes state-specific and common buttons", async () => withDatabase(asyn
 
   const buttons = recorder.messages[0].replyMarkup.inline_keyboard.flat();
   assert.deepEqual(buttons.map(({ text }) => text), [
-    "수리 시작",
-    "바로 판매",
-    "수리 기록 추가",
-    "비용 추가",
+    "수리",
+    "비용",
+    "판매",
+    "수정",
     "목록으로",
   ]);
+  assert.deepEqual(
+    recorder.messages[0].replyMarkup.inline_keyboard.map(
+      (row) => row.map(({ text }) => text),
+    ),
+    [["수리", "비용"], ["판매", "수정"], ["목록으로"]],
+  );
 }));
 
 test("keeps every Telegram button label in Korean", async () => withDatabase(async (database) => {
@@ -220,7 +226,7 @@ test("uses English action ids in callback data", async () => withDatabase(async 
     .flat()
     .map(({ callback_data: value }) => value);
   assert.ok(callbackData.includes(
-    `inventory:start_repair:${inventory.inventoryCode}`,
+    `inventory:repair:${inventory.inventoryCode}`,
   ));
   assert.ok(callbackData.includes("inventory:list"));
   assert.ok(callbackData.every((value) => value === "inventory:list" || (
