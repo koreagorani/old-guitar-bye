@@ -13,7 +13,10 @@ import {
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
 import { beginCompleteSaleFlow } from "../interactions/complete-sale-flow.js";
 import { beginExpenseFlow } from "../interactions/expense-flow.js";
-import { beginRepairLogFlow } from "../interactions/repair-log-flow.js";
+import {
+  beginRepairLogFlow,
+  beginRepairMenu,
+} from "../interactions/repair-log-flow.js";
 import { parseInventoryCallbackData } from "./inventory-callback-parser.js";
 
 export const CALLBACK_MESSAGES = Object.freeze({
@@ -96,6 +99,15 @@ export async function handleInventoryCallback({
       callbackQuery,
       pendingInteractions,
       sendMessage,
+      answerCallback,
+    });
+  }
+
+  if (action === "repair") {
+    return beginRepairMenu({
+      inventory,
+      callbackQuery,
+      editMessage,
       answerCallback,
     });
   }

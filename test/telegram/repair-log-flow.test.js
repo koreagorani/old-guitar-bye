@@ -16,7 +16,9 @@ import {
   INVALID_REPAIR_TYPE_MESSAGE,
   REPAIR_CANCELLED_MESSAGE,
   REPAIR_COST_PROMPT,
+  REPAIR_COST_MENU_PROMPT,
   REPAIR_INPUT_STEPS,
+  REPAIR_MENU_PROMPT,
   REPAIR_TYPE_PROMPT,
 } from "../../src/telegram/interactions/repair-log-flow.js";
 import { createPendingInteractionStore } from "../../src/telegram/interactions/pending-interaction-store.js";
@@ -106,6 +108,16 @@ function message(text, chatId = 123) {
   return { message: { chat: { id: chatId }, text } };
 }
 
+function repairCallback(data, chatId = 123) {
+  return {
+    callback_query: {
+      id: `callback-${data}`,
+      data,
+      message: { chat: { id: chatId }, message_id: 77 },
+    },
+  };
+}
+
 function dependencies(database, telegram, pendingInteractions) {
   return {
     database,
@@ -132,10 +144,214 @@ async function enter(database, text, telegram, pendingInteractions) {
   );
 }
 
+async function press(database, data, telegram, pendingInteractions, chatId = 123) {
+  return handleTelegramUpdate(
+    repairCallback(data, chatId),
+    dependencies(database, telegram, pendingInteractions),
+  );
+}
+
 async function enterType(database, inventory, telegram, pendingInteractions, type = "줄 교체") {
   await begin(database, inventory, telegram, pendingInteractions);
   return enter(database, type, telegram, pendingInteractions);
 }
+
+test("repair action opens the button-based repair menu", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+
+  const result = await press(
+    database,
+    `inventory:repair:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  assert.deepEqual(result, { status: "repair_menu", inventoryItemId: inventory.id });
+  assert.equal(telegram.edits[0].text, REPAIR_MENU_PROMPT);
+  assert.deepEqual(
+    telegram.edits[0].replyMarkup.inline_keyboard.map(
+      (row) => row.map(({ text }) => text),
+    ),
+    [["줄 교체", "넥 조정"], ["세척", "기타 작업"], ["뒤로"]],
+  );
+  assert.equal(pending.has(123), false);
+}));
+
+for (const [slug, repairType] of [
+  ["string_change", "줄 교체"],
+  ["neck_adjustment", "넥 조정"],
+  ["cleaning", "세척"],
+  ["other", "기타 작업"],
+]) {
+  test(`selects the ${repairType} repair type`, async () => withDatabase(async (database) => {
+    const inventory = createInventoryFixture(database);
+    const telegram = recorder();
+    const pending = createPendingInteractionStore();
+
+    const result = await press(
+      database,
+      `repair:type:${slug}:${inventory.inventoryCode}`,
+      telegram,
+      pending,
+    );
+
+    assert.deepEqual(result, {
+      status: "awaiting_repair_cost_choice",
+      repairType,
+    });
+    assert.equal(pending.get(123).repairType, repairType);
+    assert.equal(telegram.edits[0].text, `${repairType}\n${REPAIR_COST_MENU_PROMPT}`);
+    assert.deepEqual(
+      telegram.edits[0].replyMarkup.inline_keyboard.map(
+        (row) => row.map(({ text }) => text),
+      ),
+      [["0원", "직접 입력"], ["뒤로"]],
+    );
+  }));
+}
+
+test("zero-cost button saves a repair and refreshes the detail", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+  await press(
+    database,
+    `repair:type:cleaning:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  const result = await press(
+    database,
+    `repair:cost:zero:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  const [repair] = listRepairLogsByInventoryItemId(database, inventory.id);
+
+  assert.equal(result.status, "repair_log_added");
+  assert.deepEqual(repair, {
+    id: repair.id,
+    inventoryItemId: inventory.id,
+    type: "세척",
+    costKrw: 0,
+    minutesSpent: null,
+    note: null,
+    performedAt: "2026-09-19T12:34:56.000Z",
+  });
+  assert.match(telegram.edits.at(-1).text, /수리 기록:\n- 세척/);
+  assert.match(telegram.edits.at(-1).text, /수리비: 0원/);
+  assert.equal(findInventoryItemByCode(database, inventory.inventoryCode).state, "REPAIRING");
+  assert.equal(pending.has(123), false);
+}));
+
+test("custom cost falls back to numeric input and updates totals", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+  await press(
+    database,
+    `repair:type:string_change:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  const choiceResult = await press(
+    database,
+    `repair:cost:custom:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  assert.deepEqual(choiceResult, { status: "awaiting_repair_cost" });
+  assert.equal(telegram.edits.at(-1).text, REPAIR_COST_PROMPT);
+
+  const saveResult = await enter(database, "8000", telegram, pending);
+  const detail = getInventoryDetail(database, inventory.id);
+  assert.equal(saveResult.status, "repair_log_added");
+  assert.equal(detail.cost.repairCostTotalKrw, 8000);
+  assert.equal(detail.cost.totalCostKrw, 48000);
+  assert.match(telegram.edits.at(-1).text, /수리비: 8,000원/);
+  assert.equal(findInventoryItemByCode(database, inventory.inventoryCode).state, "REPAIRING");
+}));
+
+test("cancel from custom cost input restores the inventory detail", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+  await press(
+    database,
+    `repair:type:other:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  await press(
+    database,
+    `repair:cost:custom:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  const result = await enter(database, "/cancel", telegram, pending);
+
+  assert.deepEqual(result, { status: "cancelled" });
+  assert.equal(pending.has(123), false);
+  assert.equal(telegram.messages.at(-1).text, REPAIR_CANCELLED_MESSAGE);
+  assert.match(telegram.edits.at(-1).text, new RegExp(`🎸 ${inventory.inventoryCode}`));
+  assert.deepEqual(listRepairLogsByInventoryItemId(database, inventory.id), []);
+}));
+
+test("back buttons return to the previous repair screen and then detail", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+  await press(
+    database,
+    `repair:type:neck_adjustment:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  const menuResult = await press(
+    database,
+    `repair:back:types:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  assert.deepEqual(menuResult, { status: "repair_menu" });
+  assert.equal(telegram.edits.at(-1).text, REPAIR_MENU_PROMPT);
+  assert.equal(pending.has(123), false);
+
+  const detailResult = await press(
+    database,
+    `repair:back:detail:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  assert.deepEqual(detailResult, { status: "repair_menu_closed" });
+  assert.match(telegram.edits.at(-1).text, new RegExp(`🎸 ${inventory.inventoryCode}`));
+  assert.match(telegram.edits.at(-1).text, /상태: 수리 중/);
+}));
+
+test("unauthorized repair menu callback is ignored before database access", async () => {
+  const database = new Proxy({}, {
+    get() {
+      throw new Error("database must not be accessed");
+    },
+  });
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+
+  const result = await handleTelegramUpdate(
+    repairCallback("repair:type:cleaning:G-0001", 999),
+    dependencies(database, telegram, pending),
+  );
+
+  assert.deepEqual(result, { status: "ignored" });
+  assert.equal(pending.has(999), false);
+  assert.deepEqual(telegram.edits, []);
+});
 
 test("add_repair_log callback starts the repair input flow", async () => withDatabase(async (database) => {
   const inventory = createInventoryFixture(database);

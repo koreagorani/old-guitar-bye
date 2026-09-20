@@ -9,7 +9,10 @@ import {
   handleSaleMarketplaceCallback,
 } from "./interactions/complete-sale-flow.js";
 import { handlePendingExpenseMessage } from "./interactions/expense-flow.js";
-import { handlePendingRepairMessage } from "./interactions/repair-log-flow.js";
+import {
+  handlePendingRepairMessage,
+  handleRepairMenuCallback,
+} from "./interactions/repair-log-flow.js";
 import { createPendingInteractionStore } from "./interactions/pending-interaction-store.js";
 import {
   isAllowedTelegramChat,
@@ -87,6 +90,16 @@ export async function handleTelegramUpdate(
             callbackQuery,
             pendingInteractions,
             sendMessage,
+            editMessage,
+            answerCallback: acknowledge,
+            now,
+          });
+        }
+        if (callbackQuery.data?.startsWith("repair:")) {
+          return handleRepairMenuCallback({
+            database,
+            callbackQuery,
+            pendingInteractions,
             editMessage,
             answerCallback: acknowledge,
             now,
