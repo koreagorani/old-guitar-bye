@@ -12,7 +12,10 @@ import {
 } from "../render/inventory-list-renderer.js";
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
 import { beginCompleteSaleFlow } from "../interactions/complete-sale-flow.js";
-import { beginExpenseFlow } from "../interactions/expense-flow.js";
+import {
+  beginExpenseFlow,
+  beginExpenseMenu,
+} from "../interactions/expense-flow.js";
 import {
   beginRepairLogFlow,
   beginRepairMenu,
@@ -105,6 +108,15 @@ export async function handleInventoryCallback({
 
   if (action === "repair") {
     return beginRepairMenu({
+      inventory,
+      callbackQuery,
+      editMessage,
+      answerCallback,
+    });
+  }
+
+  if (action === "expense") {
+    return beginExpenseMenu({
       inventory,
       callbackQuery,
       editMessage,

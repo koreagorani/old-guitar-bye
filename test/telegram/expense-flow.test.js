@@ -13,9 +13,14 @@ import { saveOrUpdateListing } from "../../src/repositories/listing-repository.j
 import { listRepairLogsByInventoryItemId } from "../../src/repositories/repair-repository.js";
 import { handleTelegramUpdate } from "../../src/telegram/bot.js";
 import {
+  EXPENSE_AMOUNT_INPUT_PROMPT,
+  EXPENSE_AMOUNT_INPUT_STEP,
+  EXPENSE_AMOUNT_MENU_PROMPT,
   EXPENSE_CANCELLED_MESSAGE,
   EXPENSE_INPUT_PROMPT,
   EXPENSE_INPUT_STEP,
+  EXPENSE_MENU_PROMPT,
+  INVALID_EXPENSE_AMOUNT_MESSAGE,
   INVALID_EXPENSE_INPUT_MESSAGE,
   parseExpenseInput,
 } from "../../src/telegram/interactions/expense-flow.js";
@@ -106,6 +111,16 @@ function message(text, chatId = 123) {
   return { message: { chat: { id: chatId }, text } };
 }
 
+function expenseCallback(data, chatId = 123) {
+  return {
+    callback_query: {
+      id: `callback-${data}`,
+      data,
+      message: { chat: { id: chatId }, message_id: 77 },
+    },
+  };
+}
+
 function dependencies(database, telegram, pendingInteractions) {
   return {
     database,
@@ -131,6 +146,240 @@ async function enter(database, text, telegram, pendingInteractions) {
     dependencies(database, telegram, pendingInteractions),
   );
 }
+
+async function press(database, data, telegram, pendingInteractions, chatId = 123) {
+  return handleTelegramUpdate(
+    expenseCallback(data, chatId),
+    dependencies(database, telegram, pendingInteractions),
+  );
+}
+
+test("expense action opens the button-based expense menu", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+
+  const result = await press(
+    database,
+    `inventory:expense:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  assert.deepEqual(result, { status: "expense_menu", inventoryItemId: inventory.id });
+  assert.equal(telegram.edits[0].text, EXPENSE_MENU_PROMPT);
+  assert.deepEqual(
+    telegram.edits[0].replyMarkup.inline_keyboard.map(
+      (row) => row.map(({ text }) => text),
+    ),
+    [["택배", "교통비"], ["기타"], ["뒤로"]],
+  );
+  assert.equal(pending.has(123), false);
+}));
+
+for (const [slug, label, category] of [
+  ["delivery", "택배", "LOGISTICS"],
+  ["transport", "교통비", "LOGISTICS"],
+  ["other", "기타", "OTHER"],
+]) {
+  test(`selects ${label} and maps it to ${category}`, async () => withDatabase(async (database) => {
+    const inventory = createInventoryFixture(database);
+    const telegram = recorder();
+    const pending = createPendingInteractionStore();
+
+    const result = await press(
+      database,
+      `expense:type:${slug}:${inventory.inventoryCode}`,
+      telegram,
+      pending,
+    );
+
+    assert.deepEqual(result, {
+      status: "awaiting_expense_amount_choice",
+      expenseType: label,
+    });
+    assert.equal(pending.get(123).step, EXPENSE_AMOUNT_INPUT_STEP);
+    assert.equal(pending.get(123).category, category);
+    assert.equal(pending.get(123).description, label);
+    assert.equal(telegram.edits[0].text, `${label}\n${EXPENSE_AMOUNT_MENU_PROMPT}`);
+    assert.deepEqual(
+      telegram.edits[0].replyMarkup.inline_keyboard.map(
+        (row) => row.map(({ text }) => text),
+      ),
+      [["0원", "직접 입력"], ["뒤로"]],
+    );
+  }));
+}
+
+test("zero-amount button saves an expense and refreshes the detail", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+  await press(
+    database,
+    `expense:type:delivery:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  const result = await press(
+    database,
+    `expense:amount:zero:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  const [expense] = listExpensesByInventoryItemId(database, inventory.id);
+
+  assert.equal(result.status, "expense_added");
+  assert.deepEqual(expense, {
+    id: expense.id,
+    inventoryItemId: inventory.id,
+    category: "LOGISTICS",
+    amountKrw: 0,
+    note: "택배",
+    occurredAt: "2026-09-19T13:45:00.000Z",
+  });
+  assert.match(telegram.edits.at(-1).text, /비용 기록:\n- 택배 0원/);
+  assert.equal(findInventoryItemByCode(database, inventory.inventoryCode).state, "REPAIRING");
+  assert.equal(pending.has(123), false);
+}));
+
+test("custom amount falls back to numeric input and updates totals", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+  await press(
+    database,
+    `expense:type:transport:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  const choiceResult = await press(
+    database,
+    `expense:amount:custom:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  assert.deepEqual(choiceResult, { status: "awaiting_expense_amount" });
+  assert.equal(telegram.edits.at(-1).text, EXPENSE_AMOUNT_INPUT_PROMPT);
+
+  const saveResult = await enter(database, "4500", telegram, pending);
+  const [expense] = listExpensesByInventoryItemId(database, inventory.id);
+  const detail = getInventoryDetail(database, inventory.id);
+  assert.equal(saveResult.status, "expense_added");
+  assert.equal(expense.category, "LOGISTICS");
+  assert.equal(expense.note, "교통비");
+  assert.equal(expense.amountKrw, 4500);
+  assert.equal(detail.cost.expenseCostTotalKrw, 4500);
+  assert.equal(detail.cost.totalCostKrw, 44500);
+  assert.match(telegram.edits.at(-1).text, /기타비용: 4,500원/);
+  assert.equal(findInventoryItemByCode(database, inventory.inventoryCode).state, "REPAIRING");
+}));
+
+for (const invalidAmount of ["-1", "금액", "1.5", "   "]) {
+  test(`rejects invalid direct expense amount ${JSON.stringify(invalidAmount)}`, async () => withDatabase(async (database) => {
+    const inventory = createInventoryFixture(database);
+    const telegram = recorder();
+    const pending = createPendingInteractionStore();
+    await press(
+      database,
+      `expense:type:other:${inventory.inventoryCode}`,
+      telegram,
+      pending,
+    );
+    await press(
+      database,
+      `expense:amount:custom:${inventory.inventoryCode}`,
+      telegram,
+      pending,
+    );
+
+    const result = await enter(database, invalidAmount, telegram, pending);
+
+    assert.deepEqual(result, { status: "invalid_expense_input" });
+    assert.equal(telegram.messages.at(-1).text, INVALID_EXPENSE_AMOUNT_MESSAGE);
+    assert.equal(pending.get(123).step, EXPENSE_AMOUNT_INPUT_STEP);
+    assert.deepEqual(listExpensesByInventoryItemId(database, inventory.id), []);
+  }));
+}
+
+test("back buttons return to the previous expense screen and then detail", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+  await press(
+    database,
+    `expense:type:delivery:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  const menuResult = await press(
+    database,
+    `expense:back:types:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  assert.deepEqual(menuResult, { status: "expense_menu" });
+  assert.equal(telegram.edits.at(-1).text, EXPENSE_MENU_PROMPT);
+  assert.equal(pending.has(123), false);
+
+  const detailResult = await press(
+    database,
+    `expense:back:detail:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  assert.deepEqual(detailResult, { status: "expense_menu_closed" });
+  assert.match(telegram.edits.at(-1).text, new RegExp(`🎸 ${inventory.inventoryCode}`));
+  assert.match(telegram.edits.at(-1).text, /상태: 수리 중/);
+}));
+
+test("cancel from custom amount input restores the inventory detail", async () => withDatabase(async (database) => {
+  const inventory = createInventoryFixture(database);
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+  await press(
+    database,
+    `expense:type:other:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+  await press(
+    database,
+    `expense:amount:custom:${inventory.inventoryCode}`,
+    telegram,
+    pending,
+  );
+
+  const result = await enter(database, "/cancel", telegram, pending);
+
+  assert.deepEqual(result, { status: "cancelled" });
+  assert.equal(pending.has(123), false);
+  assert.equal(telegram.messages.at(-1).text, EXPENSE_CANCELLED_MESSAGE);
+  assert.match(telegram.edits.at(-1).text, new RegExp(`🎸 ${inventory.inventoryCode}`));
+  assert.deepEqual(listExpensesByInventoryItemId(database, inventory.id), []);
+}));
+
+test("unauthorized expense menu callback is ignored before database access", async () => {
+  const database = new Proxy({}, {
+    get() {
+      throw new Error("database must not be accessed");
+    },
+  });
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+
+  const result = await handleTelegramUpdate(
+    expenseCallback("expense:type:delivery:G-0001", 999),
+    dependencies(database, telegram, pending),
+  );
+
+  assert.deepEqual(result, { status: "ignored" });
+  assert.equal(pending.has(999), false);
+  assert.deepEqual(telegram.edits, []);
+});
 
 test("add_expense callback starts the expense input flow", async () => withDatabase(async (database) => {
   const inventory = createInventoryFixture(database);

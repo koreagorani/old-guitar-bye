@@ -8,7 +8,10 @@ import {
   handlePendingSaleMessage,
   handleSaleMarketplaceCallback,
 } from "./interactions/complete-sale-flow.js";
-import { handlePendingExpenseMessage } from "./interactions/expense-flow.js";
+import {
+  handleExpenseMenuCallback,
+  handlePendingExpenseMessage,
+} from "./interactions/expense-flow.js";
 import {
   handlePendingRepairMessage,
   handleRepairMenuCallback,
@@ -97,6 +100,16 @@ export async function handleTelegramUpdate(
         }
         if (callbackQuery.data?.startsWith("repair:")) {
           return handleRepairMenuCallback({
+            database,
+            callbackQuery,
+            pendingInteractions,
+            editMessage,
+            answerCallback: acknowledge,
+            now,
+          });
+        }
+        if (callbackQuery.data?.startsWith("expense:")) {
+          return handleExpenseMenuCallback({
             database,
             callbackQuery,
             pendingInteractions,

@@ -77,8 +77,7 @@ function renderExpense(expense) {
     expense.category,
     "expense category",
   );
-  const label = expense.category === "OTHER"
-    && typeof expense.note === "string"
+  const label = typeof expense.note === "string"
     && expense.note.trim() !== ""
     ? expense.note
     : categoryLabel;
