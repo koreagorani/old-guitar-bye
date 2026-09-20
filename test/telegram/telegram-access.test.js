@@ -130,7 +130,7 @@ test("rejects a malformed TELEGRAM_ALLOWED_CHAT_ID", async () => {
   );
 });
 
-test("registers the command menu when the bot starts", async () => {
+test("registers commands and the chat menu button when the bot starts", async () => {
   const directory = mkdtempSync(join(tmpdir(), "telegram-command-menu-"));
   const databasePath = join(directory, "bot.sqlite");
   const requests = [];
@@ -152,12 +152,19 @@ test("registers the command menu when the bot starts", async () => {
     rmSync(directory, { recursive: true, force: true });
   }
 
-  assert.equal(requests.length, 1);
+  assert.equal(requests.length, 2);
   assert.equal(
     requests[0].url,
     "https://api.telegram.org/bottest-token/setMyCommands",
   );
   assert.deepEqual(JSON.parse(requests[0].options.body), {
     commands: TELEGRAM_COMMANDS,
+  });
+  assert.equal(
+    requests[1].url,
+    "https://api.telegram.org/bottest-token/setChatMenuButton",
+  );
+  assert.deepEqual(JSON.parse(requests[1].options.body), {
+    menu_button: { type: "commands" },
   });
 });

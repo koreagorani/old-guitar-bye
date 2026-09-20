@@ -26,6 +26,7 @@ import {
   editTelegramMessageText,
   getTelegramUpdates,
   sendTelegramMessage,
+  setTelegramChatMenuButton,
   setTelegramCommands,
 } from "./telegram-client.js";
 
@@ -285,6 +286,7 @@ export async function runBot({
       commands: TELEGRAM_COMMANDS,
       fetchImpl,
     });
+    await setTelegramChatMenuButton({ token, fetchImpl });
     while (!signal?.aborted) {
       const updates = await getTelegramUpdates({
         token,

@@ -5,6 +5,7 @@ import {
   answerTelegramCallbackQuery,
   editTelegramMessageText,
   getTelegramUpdates,
+  setTelegramChatMenuButton,
   setTelegramCommands,
 } from "../../src/telegram/telegram-client.js";
 
@@ -140,4 +141,21 @@ test("sets the Telegram command menu", async () => {
     "https://api.telegram.org/bottest-token/setMyCommands",
   );
   assert.deepEqual(JSON.parse(recorder.requests[0].options.body), { commands });
+});
+
+test("sets the Telegram chat menu button to commands", async () => {
+  const recorder = fetchRecorder(true);
+
+  await setTelegramChatMenuButton({
+    token: "test-token",
+    fetchImpl: recorder.fetchImpl,
+  });
+
+  assert.equal(
+    recorder.requests[0].url,
+    "https://api.telegram.org/bottest-token/setChatMenuButton",
+  );
+  assert.deepEqual(JSON.parse(recorder.requests[0].options.body), {
+    menu_button: { type: "commands" },
+  });
 });

@@ -115,3 +115,15 @@ export function setTelegramCommands({
   }
   return callTelegramApi(token, "setMyCommands", { commands }, fetchImpl);
 }
+
+export function setTelegramChatMenuButton({
+  token,
+  fetchImpl = globalThis.fetch,
+}) {
+  return callTelegramApi(
+    token,
+    "setChatMenuButton",
+    { menu_button: { type: "commands" } },
+    fetchImpl,
+  );
+}
