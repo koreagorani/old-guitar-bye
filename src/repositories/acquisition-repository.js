@@ -1,4 +1,5 @@
 import { transitionAcquisition } from "../domain/acquisition/acquisition-state.js";
+import { withImmediateTransaction } from "../db/transaction.js";
 
 const ACQUISITION_COLUMNS = `
   id,
@@ -90,8 +91,7 @@ export function updateAcquisitionState(
     }
   }
 
-  database.exec("BEGIN IMMEDIATE;");
-  try {
+  return withImmediateTransaction(database, () => {
     const current = findAcquisitionById(database, id);
     if (!current) {
       throw new Error(`Acquisition not found: ${id}`);
@@ -146,10 +146,6 @@ export function updateAcquisitionState(
       WHERE id = ?
     `).run(...values);
     const updated = findAcquisitionById(database, id);
-    database.exec("COMMIT;");
     return updated;
-  } catch (error) {
-    database.exec("ROLLBACK;");
-    throw error;
-  }
+  });
 }

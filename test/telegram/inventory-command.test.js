@@ -118,6 +118,7 @@ test("responds to /help with concise Korean usage guidance", async () => {
     { chatId: 123, text: HELP_MESSAGE },
   ]);
   assert.match(HELP_MESSAGE, /\/inventory\n현재 보유 기타 보기/);
+  assert.match(HELP_MESSAGE, /\/add\n새 기타 등록/);
   assert.match(HELP_MESSAGE, /\/help\n사용 방법 보기/);
 });
 

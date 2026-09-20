@@ -16,6 +16,11 @@ import {
   handlePendingRepairMessage,
   handleRepairMenuCallback,
 } from "./interactions/repair-log-flow.js";
+import {
+  beginAddInventoryFlow,
+  handleAddInventoryCallback,
+  handlePendingAddInventoryMessage,
+} from "./interactions/add-inventory-flow.js";
 import { createPendingInteractionStore } from "./interactions/pending-interaction-store.js";
 import {
   isAllowedTelegramChat,
@@ -39,6 +44,9 @@ export const HELP_MESSAGE = [
   "/inventory",
   "현재 보유 기타 보기",
   "",
+  "/add",
+  "새 기타 등록",
+  "",
   "/help",
   "사용 방법 보기",
 ].join("\n");
@@ -46,6 +54,7 @@ export const HELP_MESSAGE = [
 export const TELEGRAM_COMMANDS = Object.freeze([
   Object.freeze({ command: "start", description: "봇 안내" }),
   Object.freeze({ command: "inventory", description: "현재 재고 목록 조회" }),
+  Object.freeze({ command: "add", description: "새 기타 등록" }),
   Object.freeze({ command: "help", description: "사용 가능한 기능 안내" }),
 ]);
 
@@ -106,6 +115,14 @@ export async function handleTelegramUpdate(
       callbackQuery,
       answerCallback,
       (acknowledge) => {
+        if (callbackQuery.data?.startsWith("add:")) {
+          return handleAddInventoryCallback({
+            callbackQuery,
+            pendingInteractions,
+            editMessage,
+            answerCallback: acknowledge,
+          });
+        }
         if (callbackQuery.data?.startsWith("sale:listing:")) {
           return handleSaleMarketplaceCallback({
             database,
@@ -157,6 +174,17 @@ export async function handleTelegramUpdate(
     return { status: "ignored" };
   }
 
+  const addResult = await handlePendingAddInventoryMessage({
+    database,
+    message,
+    pendingInteractions,
+    sendMessage,
+    now,
+  });
+  if (addResult !== null) {
+    return addResult;
+  }
+
   const repairResult = await handlePendingRepairMessage({
     database,
     message,
@@ -203,6 +231,13 @@ export async function handleTelegramUpdate(
       database,
       chatId: message.chat.id,
       commandText: message.text,
+      sendMessage,
+    });
+  }
+  if (name === "/add") {
+    return beginAddInventoryFlow({
+      chatId: message.chat.id,
+      pendingInteractions,
       sendMessage,
     });
   }

@@ -127,6 +127,7 @@ test("sets the Telegram command menu", async () => {
   const commands = [
     { command: "start", description: "봇 안내" },
     { command: "inventory", description: "현재 재고 목록 조회" },
+    { command: "add", description: "새 기타 등록" },
     { command: "help", description: "사용 가능한 기능 안내" },
   ];
 
