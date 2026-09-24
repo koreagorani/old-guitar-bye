@@ -101,7 +101,7 @@ export async function handleInventoryCallback({
       inventory,
       callbackQuery,
       pendingInteractions,
-      sendMessage,
+      editMessage,
       answerCallback,
     });
   }
@@ -129,7 +129,7 @@ export async function handleInventoryCallback({
       inventory,
       callbackQuery,
       pendingInteractions,
-      sendMessage,
+      editMessage,
       answerCallback,
     });
   }
@@ -139,7 +139,7 @@ export async function handleInventoryCallback({
       inventory,
       callbackQuery,
       pendingInteractions,
-      sendMessage,
+      editMessage,
       answerCallback,
     });
   }

@@ -19,8 +19,6 @@ export const REPAIR_INPUT_STEPS = Object.freeze({
   COST: "AWAITING_REPAIR_COST",
 });
 
-const krwFormatter = new Intl.NumberFormat("ko-KR");
-
 const REPAIR_TYPES = Object.freeze({
   string_change: "줄 교체",
   neck_adjustment: "넥 조정",
@@ -177,7 +175,7 @@ export async function handleRepairMenuCallback({
       repairType,
       inventoryItemId: inventory.id,
       inventoryCode: inventory.inventoryCode,
-      detailMessageId: messageId,
+      mainMessageId: messageId,
     });
     await editMessage({
       chatId,
@@ -236,7 +234,7 @@ export async function beginRepairLogFlow({
   inventory,
   callbackQuery,
   pendingInteractions,
-  sendMessage,
+  editMessage,
   answerCallback,
 }) {
   const chatId = callbackQuery.message.chat.id;
@@ -245,9 +243,14 @@ export async function beginRepairLogFlow({
     step: REPAIR_INPUT_STEPS.TYPE,
     inventoryItemId: inventory.id,
     inventoryCode: inventory.inventoryCode,
-    detailMessageId: callbackQuery.message.message_id,
+    mainMessageId: callbackQuery.message.message_id,
   });
-  await sendMessage({ chatId, text: REPAIR_TYPE_PROMPT });
+  await editMessage({
+    chatId,
+    messageId: callbackQuery.message.message_id,
+    text: REPAIR_TYPE_PROMPT,
+    replyMarkup: { inline_keyboard: [] },
+  });
   await answerCallback({ callbackQueryId: callbackQuery.id });
 
   return {
@@ -260,8 +263,8 @@ export async function handlePendingRepairMessage({
   database,
   message,
   pendingInteractions,
-  sendMessage,
   editMessage,
+  cleanupMessage,
   now = () => new Date(),
 }) {
   const interaction = pendingInteractions.get(message.chat.id);
@@ -269,20 +272,21 @@ export async function handlePendingRepairMessage({
     return null;
   }
 
+  await cleanupMessage({
+    chatId: message.chat.id,
+    messageId: message.message_id,
+  });
+
   if (message.text.trim() === "/cancel") {
     pendingInteractions.delete(message.chat.id);
     await editMessage({
       chatId: message.chat.id,
-      messageId: interaction.detailMessageId,
+      messageId: interaction.mainMessageId,
       ...renderUpdatedInventory(
         database,
         interaction.inventoryItemId,
         interaction.inventoryCode,
       ),
-    });
-    await sendMessage({
-      chatId: message.chat.id,
-      text: REPAIR_CANCELLED_MESSAGE,
     });
     return { status: "cancelled" };
   }
@@ -290,9 +294,11 @@ export async function handlePendingRepairMessage({
   if (interaction.step === REPAIR_INPUT_STEPS.TYPE) {
     const repairType = message.text.trim();
     if (repairType === "") {
-      await sendMessage({
+      await editMessage({
         chatId: message.chat.id,
+        messageId: interaction.mainMessageId,
         text: INVALID_REPAIR_TYPE_MESSAGE,
+        replyMarkup: { inline_keyboard: [] },
       });
       return { status: "invalid_repair_type" };
     }
@@ -302,15 +308,22 @@ export async function handlePendingRepairMessage({
       step: REPAIR_INPUT_STEPS.COST,
       repairType,
     });
-    await sendMessage({ chatId: message.chat.id, text: REPAIR_COST_PROMPT });
+    await editMessage({
+      chatId: message.chat.id,
+      messageId: interaction.mainMessageId,
+      text: REPAIR_COST_PROMPT,
+      replyMarkup: { inline_keyboard: [] },
+    });
     return { status: "awaiting_repair_cost" };
   }
 
   const costKrw = parseRepairCost(message.text);
   if (costKrw === null) {
-    await sendMessage({
+    await editMessage({
       chatId: message.chat.id,
+      messageId: interaction.mainMessageId,
       text: INVALID_REPAIR_COST_MESSAGE,
+      replyMarkup: { inline_keyboard: [] },
     });
     return { status: "invalid_repair_cost" };
   }
@@ -325,15 +338,8 @@ export async function handlePendingRepairMessage({
   );
   await editMessage({
     chatId: message.chat.id,
-    messageId: interaction.detailMessageId,
+    messageId: interaction.mainMessageId,
     ...updated,
-  });
-  await sendMessage({
-    chatId: message.chat.id,
-    text: [
-      "수리 기록을 추가했습니다.",
-      `${interaction.repairType} / ${krwFormatter.format(costKrw)}원`,
-    ].join("\n"),
   });
 
   return {

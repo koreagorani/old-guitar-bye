@@ -87,13 +87,16 @@ function recorder() {
   const messages = [];
   const edits = [];
   const answers = [];
+  const deletions = [];
   return {
     messages,
     edits,
     answers,
+    deletions,
     sendMessage: async (payload) => messages.push(payload),
     editMessage: async (payload) => edits.push(payload),
     answerCallback: async (payload) => answers.push(payload),
+    deleteMessage: async (payload) => deletions.push(payload),
   };
 }
 
@@ -108,7 +111,7 @@ function callback(inventoryCode, chatId = 123) {
 }
 
 function message(text, chatId = 123) {
-  return { message: { chat: { id: chatId }, text } };
+  return { message: { chat: { id: chatId }, message_id: 99, text } };
 }
 
 function expenseCallback(data, chatId = 123) {
@@ -127,6 +130,7 @@ function dependencies(database, telegram, pendingInteractions) {
     sendMessage: telegram.sendMessage,
     editMessage: telegram.editMessage,
     answerCallback: telegram.answerCallback,
+    deleteMessage: telegram.deleteMessage,
     allowedChatId: "123",
     pendingInteractions,
     now: () => new Date("2026-09-19T13:45:00Z"),
@@ -298,7 +302,7 @@ for (const invalidAmount of ["-1", "금액", "1.5", "   "]) {
     const result = await enter(database, invalidAmount, telegram, pending);
 
     assert.deepEqual(result, { status: "invalid_expense_input" });
-    assert.equal(telegram.messages.at(-1).text, INVALID_EXPENSE_AMOUNT_MESSAGE);
+    assert.equal(telegram.edits.at(-1).text, INVALID_EXPENSE_AMOUNT_MESSAGE);
     assert.equal(pending.get(123).step, EXPENSE_AMOUNT_INPUT_STEP);
     assert.deepEqual(listExpensesByInventoryItemId(database, inventory.id), []);
   }));
@@ -357,8 +361,8 @@ test("cancel from custom amount input restores the inventory detail", async () =
 
   assert.deepEqual(result, { status: "cancelled" });
   assert.equal(pending.has(123), false);
-  assert.equal(telegram.messages.at(-1).text, EXPENSE_CANCELLED_MESSAGE);
   assert.match(telegram.edits.at(-1).text, new RegExp(`🎸 ${inventory.inventoryCode}`));
+  assert.deepEqual(telegram.deletions.at(-1), { chatId: 123, messageId: 99 });
   assert.deepEqual(listExpensesByInventoryItemId(database, inventory.id), []);
 }));
 
@@ -392,7 +396,7 @@ test("add_expense callback starts the expense input flow", async () => withDatab
     status: "awaiting_expense_input",
     inventoryItemId: inventory.id,
   });
-  assert.equal(telegram.messages[0].text, EXPENSE_INPUT_PROMPT);
+  assert.equal(telegram.edits[0].text, EXPENSE_INPUT_PROMPT);
   assert.deepEqual(telegram.answers, [{ callbackQueryId: "add-expense-callback" }]);
 }));
 
@@ -408,7 +412,7 @@ test("stores an in-memory pending expense interaction", async () => withDatabase
     step: EXPENSE_INPUT_STEP,
     inventoryItemId: inventory.id,
     inventoryCode: inventory.inventoryCode,
-    detailMessageId: 77,
+    mainMessageId: 77,
   });
 }));
 
@@ -442,7 +446,8 @@ test("allows a zero expense amount", async () => withDatabase(async (database) =
   await enter(database, "주차 0", telegram, pending);
 
   assert.equal(listExpensesByInventoryItemId(database, inventory.id)[0].amountKrw, 0);
-  assert.match(telegram.messages.at(-1).text, /주차 \/ 0원/);
+  assert.match(telegram.edits.at(-1).text, /기타비용: 0원/);
+  assert.deepEqual(telegram.messages, []);
 }));
 
 for (const [name, input] of [
@@ -462,7 +467,7 @@ for (const [name, input] of [
 
     assert.deepEqual(result, { status: "invalid_expense_input" });
     assert.equal(pending.get(123).step, EXPENSE_INPUT_STEP);
-    assert.equal(telegram.messages.at(-1).text, INVALID_EXPENSE_INPUT_MESSAGE);
+    assert.equal(telegram.edits.at(-1).text, INVALID_EXPENSE_INPUT_MESSAGE);
     assert.deepEqual(listExpensesByInventoryItemId(database, inventory.id), []);
   }));
 }
@@ -540,11 +545,11 @@ test("refreshes the original detail message with updated costs", async () => wit
   await begin(database, inventory, telegram, pending);
   await enter(database, "택배 4500", telegram, pending);
 
-  assert.equal(telegram.edits[0].messageId, 77);
-  assert.match(telegram.edits[0].text, /기타비용: 4,500원/);
-  assert.match(telegram.edits[0].text, /총원가: 44,500원/);
-  assert.match(telegram.edits[0].text, /비용 기록:\n- 택배 4,500원/);
-  assert.match(telegram.messages.at(-1).text, /비용을 추가했습니다\.\n택배 \/ 4,500원/);
+  assert.equal(telegram.edits.at(-1).messageId, 77);
+  assert.match(telegram.edits.at(-1).text, /기타비용: 4,500원/);
+  assert.match(telegram.edits.at(-1).text, /총원가: 44,500원/);
+  assert.match(telegram.edits.at(-1).text, /비용 기록:\n- 택배 4,500원/);
+  assert.deepEqual(telegram.messages, []);
 }));
 
 test("cancels and clears pending expense input with /cancel", async () => withDatabase(async (database) => {
@@ -557,7 +562,8 @@ test("cancels and clears pending expense input with /cancel", async () => withDa
 
   assert.deepEqual(result, { status: "cancelled" });
   assert.equal(pending.has(123), false);
-  assert.equal(telegram.messages.at(-1).text, EXPENSE_CANCELLED_MESSAGE);
+  assert.match(telegram.edits.at(-1).text, new RegExp(`🎸 ${inventory.inventoryCode}`));
+  assert.deepEqual(telegram.deletions.at(-1), { chatId: 123, messageId: 99 });
 }));
 
 test("an unauthorized callback cannot create pending state or access the database", async () => {
@@ -588,7 +594,7 @@ test("does not consume a pending repair interaction", async () => withDatabase(a
     step: "AWAITING_REPAIR_TYPE",
     inventoryItemId: inventory.id,
     inventoryCode: inventory.inventoryCode,
-    detailMessageId: 77,
+    mainMessageId: 77,
   });
 
   const result = await enter(database, "줄 교체", telegram, pending);
@@ -608,7 +614,7 @@ test("does not consume a pending complete-sale interaction", async () => withDat
     step: "AWAITING_SALE_PRICE",
     inventoryItemId: inventory.id,
     inventoryCode: inventory.inventoryCode,
-    detailMessageId: 77,
+    mainMessageId: 77,
   });
 
   const result = await enter(database, "75000", telegram, pending);

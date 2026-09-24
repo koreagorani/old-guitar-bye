@@ -100,10 +100,8 @@ async function finishSale({
   interaction,
   saleListing,
   marketplace,
-  marketplaceDisplay,
   pendingInteractions,
   chatId,
-  sendMessage,
   editMessage,
   now,
   answerCallback,
@@ -126,7 +124,12 @@ async function finishSale({
     if (answerCallback && callbackQueryId) {
       await answerCallback({ callbackQueryId, text: SALE_FAILED_MESSAGE });
     } else {
-      await sendMessage({ chatId, text: SALE_FAILED_MESSAGE });
+      await editMessage({
+        chatId,
+        messageId: interaction.mainMessageId,
+        text: SALE_FAILED_MESSAGE,
+        replyMarkup: { inline_keyboard: [] },
+      });
     }
     return { status: "invalid_state" };
   }
@@ -139,16 +142,8 @@ async function finishSale({
   );
   await editMessage({
     chatId,
-    messageId: interaction.detailMessageId,
+    messageId: interaction.mainMessageId,
     ...updated,
-  });
-  await sendMessage({
-    chatId,
-    text: [
-      "판매 완료했습니다.",
-      `판매가: ${krwFormatter.format(interaction.salePriceKrw)}원`,
-      `판매처: ${marketplaceDisplay}`,
-    ].join("\n"),
   });
   if (answerCallback && callbackQueryId) {
     await answerCallback({ callbackQueryId });
@@ -165,7 +160,7 @@ export async function beginCompleteSaleFlow({
   inventory,
   callbackQuery,
   pendingInteractions,
-  sendMessage,
+  editMessage,
   answerCallback,
 }) {
   if (inventory.state !== "FOR_SALE") {
@@ -186,9 +181,14 @@ export async function beginCompleteSaleFlow({
     step: SALE_INPUT_STEPS.PRICE,
     inventoryItemId: inventory.id,
     inventoryCode: inventory.inventoryCode,
-    detailMessageId: callbackQuery.message.message_id,
+    mainMessageId: callbackQuery.message.message_id,
   });
-  await sendMessage({ chatId, text: SALE_PRICE_PROMPT });
+  await editMessage({
+    chatId,
+    messageId: callbackQuery.message.message_id,
+    text: SALE_PRICE_PROMPT,
+    replyMarkup: { inline_keyboard: [] },
+  });
   await answerCallback({ callbackQueryId: callbackQuery.id });
 
   return {
@@ -201,8 +201,8 @@ export async function handlePendingSaleMessage({
   database,
   message,
   pendingInteractions,
-  sendMessage,
   editMessage,
+  cleanupMessage,
   now = () => new Date(),
 }) {
   const interaction = pendingInteractions.get(message.chat.id);
@@ -210,9 +210,22 @@ export async function handlePendingSaleMessage({
     return null;
   }
 
+  await cleanupMessage({
+    chatId: message.chat.id,
+    messageId: message.message_id,
+  });
+
   if (message.text.trim() === "/cancel") {
     pendingInteractions.delete(message.chat.id);
-    await sendMessage({ chatId: message.chat.id, text: SALE_CANCELLED_MESSAGE });
+    await editMessage({
+      chatId: message.chat.id,
+      messageId: interaction.mainMessageId,
+      ...renderUpdatedInventory(
+        database,
+        interaction.inventoryItemId,
+        interaction.inventoryCode,
+      ),
+    });
     return { status: "cancelled" };
   }
 
@@ -221,8 +234,9 @@ export async function handlePendingSaleMessage({
       .map((id) => findSaleListingById(database, id))
       .filter((listing) => listing?.closedAt === null
         && listing.inventoryItemId === interaction.inventoryItemId);
-    await sendMessage({
+    await editMessage({
       chatId: message.chat.id,
+      messageId: interaction.mainMessageId,
       text: SALE_MARKETPLACE_PROMPT,
       replyMarkup: saleListingKeyboard(offeredListings),
     });
@@ -231,9 +245,11 @@ export async function handlePendingSaleMessage({
 
   const salePriceKrw = parseSalePrice(message.text);
   if (salePriceKrw === null) {
-    await sendMessage({
+    await editMessage({
       chatId: message.chat.id,
+      messageId: interaction.mainMessageId,
       text: INVALID_SALE_PRICE_MESSAGE,
+      replyMarkup: { inline_keyboard: [] },
     });
     return { status: "invalid_sale_price" };
   }
@@ -250,10 +266,8 @@ export async function handlePendingSaleMessage({
       interaction: pricedInteraction,
       saleListing: null,
       marketplace: "direct",
-      marketplaceDisplay: MARKETPLACE_LABELS.direct,
       pendingInteractions,
       chatId: message.chat.id,
-      sendMessage,
       editMessage,
       now,
     });
@@ -266,10 +280,8 @@ export async function handlePendingSaleMessage({
       interaction: pricedInteraction,
       saleListing,
       marketplace: saleListing.marketplace,
-      marketplaceDisplay: marketplaceLabel(saleListing.marketplace),
       pendingInteractions,
       chatId: message.chat.id,
-      sendMessage,
       editMessage,
       now,
     });
@@ -280,8 +292,9 @@ export async function handlePendingSaleMessage({
     step: SALE_INPUT_STEPS.MARKETPLACE,
     saleListingIds: activeListings.map(({ id }) => id),
   });
-  await sendMessage({
+  await editMessage({
     chatId: message.chat.id,
+    messageId: interaction.mainMessageId,
     text: SALE_MARKETPLACE_PROMPT,
     replyMarkup: saleListingKeyboard(activeListings),
   });
@@ -292,7 +305,6 @@ export async function handleSaleMarketplaceCallback({
   database,
   callbackQuery,
   pendingInteractions,
-  sendMessage,
   editMessage,
   answerCallback,
   now = () => new Date(),
@@ -325,10 +337,8 @@ export async function handleSaleMarketplaceCallback({
     interaction,
     saleListing,
     marketplace: saleListing.marketplace,
-    marketplaceDisplay: marketplaceLabel(saleListing.marketplace),
     pendingInteractions,
     chatId,
-    sendMessage,
     editMessage,
     now,
     answerCallback,

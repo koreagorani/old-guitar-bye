@@ -84,13 +84,16 @@ function recorder() {
   const messages = [];
   const edits = [];
   const answers = [];
+  const deletions = [];
   return {
     messages,
     edits,
     answers,
+    deletions,
     sendMessage: async (payload) => messages.push(payload),
     editMessage: async (payload) => edits.push(payload),
     answerCallback: async (payload) => answers.push(payload),
+    deleteMessage: async (payload) => deletions.push(payload),
   };
 }
 
@@ -105,7 +108,7 @@ function callback(inventoryCode, chatId = 123) {
 }
 
 function message(text, chatId = 123) {
-  return { message: { chat: { id: chatId }, text } };
+  return { message: { chat: { id: chatId }, message_id: 99, text } };
 }
 
 function repairCallback(data, chatId = 123) {
@@ -124,6 +127,7 @@ function dependencies(database, telegram, pendingInteractions) {
     sendMessage: telegram.sendMessage,
     editMessage: telegram.editMessage,
     answerCallback: telegram.answerCallback,
+    deleteMessage: telegram.deleteMessage,
     allowedChatId: "123",
     pendingInteractions,
     now: () => new Date("2026-09-19T12:34:56Z"),
@@ -297,8 +301,8 @@ test("cancel from custom cost input restores the inventory detail", async () => 
 
   assert.deepEqual(result, { status: "cancelled" });
   assert.equal(pending.has(123), false);
-  assert.equal(telegram.messages.at(-1).text, REPAIR_CANCELLED_MESSAGE);
   assert.match(telegram.edits.at(-1).text, new RegExp(`🎸 ${inventory.inventoryCode}`));
+  assert.deepEqual(telegram.deletions.at(-1), { chatId: 123, messageId: 99 });
   assert.deepEqual(listRepairLogsByInventoryItemId(database, inventory.id), []);
 }));
 
@@ -364,7 +368,7 @@ test("add_repair_log callback starts the repair input flow", async () => withDat
     status: "awaiting_repair_type",
     inventoryItemId: inventory.id,
   });
-  assert.equal(telegram.messages[0].text, REPAIR_TYPE_PROMPT);
+  assert.equal(telegram.edits[0].text, REPAIR_TYPE_PROMPT);
   assert.deepEqual(telegram.answers, [{ callbackQueryId: "add-repair-log-callback" }]);
 }));
 
@@ -380,7 +384,7 @@ test("stores an in-memory pending repair type interaction", async () => withData
     step: REPAIR_INPUT_STEPS.TYPE,
     inventoryItemId: inventory.id,
     inventoryCode: inventory.inventoryCode,
-    detailMessageId: 77,
+    mainMessageId: 77,
   });
 }));
 
@@ -395,7 +399,8 @@ test("accepts a repair description and moves to the cost step", async () => with
   assert.deepEqual(result, { status: "awaiting_repair_cost" });
   assert.equal(pending.get(123).step, REPAIR_INPUT_STEPS.COST);
   assert.equal(pending.get(123).repairType, "줄 교체");
-  assert.equal(telegram.messages.at(-1).text, REPAIR_COST_PROMPT);
+  assert.equal(telegram.edits.at(-1).text, REPAIR_COST_PROMPT);
+  assert.deepEqual(telegram.deletions.at(-1), { chatId: 123, messageId: 99 });
 }));
 
 test("rejects an empty repair description without advancing", async () => withDatabase(async (database) => {
@@ -408,7 +413,7 @@ test("rejects an empty repair description without advancing", async () => withDa
 
   assert.deepEqual(result, { status: "invalid_repair_type" });
   assert.equal(pending.get(123).step, REPAIR_INPUT_STEPS.TYPE);
-  assert.equal(telegram.messages.at(-1).text, INVALID_REPAIR_TYPE_MESSAGE);
+  assert.equal(telegram.edits.at(-1).text, INVALID_REPAIR_TYPE_MESSAGE);
 }));
 
 test("stores a repair log through RepairRepository with the requested defaults", async () => withDatabase(async (database) => {
@@ -442,7 +447,8 @@ test("allows a zero repair cost", async () => withDatabase(async (database) => {
   await enter(database, "0", telegram, pending);
 
   assert.equal(listRepairLogsByInventoryItemId(database, inventory.id)[0].costKrw, 0);
-  assert.match(telegram.messages.at(-1).text, /세척 \/ 0원/);
+  assert.match(telegram.edits.at(-1).text, /수리비: 0원/);
+  assert.deepEqual(telegram.messages, []);
 }));
 
 for (const invalidCost of ["-1", "abc", "1.5", "   "]) {
@@ -456,7 +462,7 @@ for (const invalidCost of ["-1", "abc", "1.5", "   "]) {
 
     assert.deepEqual(result, { status: "invalid_repair_cost" });
     assert.equal(pending.get(123).step, REPAIR_INPUT_STEPS.COST);
-    assert.equal(telegram.messages.at(-1).text, INVALID_REPAIR_COST_MESSAGE);
+    assert.equal(telegram.edits.at(-1).text, INVALID_REPAIR_COST_MESSAGE);
     assert.deepEqual(listRepairLogsByInventoryItemId(database, inventory.id), []);
   }));
 }
@@ -481,8 +487,8 @@ test("increases repair cost and total cost in the refreshed detail", async () =>
   const detail = getInventoryDetail(database, inventory.id);
   assert.equal(detail.cost.repairCostTotalKrw, 8000);
   assert.equal(detail.cost.totalCostKrw, 48000);
-  assert.match(telegram.edits[0].text, /수리비: 8,000원/);
-  assert.match(telegram.edits[0].text, /총원가: 48,000원/);
+  assert.match(telegram.edits.at(-1).text, /수리비: 8,000원/);
+  assert.match(telegram.edits.at(-1).text, /총원가: 48,000원/);
 }));
 
 test("refreshes the original detail message with the repair record", async () => withDatabase(async (database) => {
@@ -492,9 +498,9 @@ test("refreshes the original detail message with the repair record", async () =>
   await enterType(database, inventory, telegram, pending);
   await enter(database, "8000", telegram, pending);
 
-  assert.equal(telegram.edits[0].messageId, 77);
-  assert.match(telegram.edits[0].text, /수리 기록:\n- 줄 교체 8,000원/);
-  assert.match(telegram.messages.at(-1).text, /수리 기록을 추가했습니다\.\n줄 교체 \/ 8,000원/);
+  assert.equal(telegram.edits.at(-1).messageId, 77);
+  assert.match(telegram.edits.at(-1).text, /수리 기록:\n- 줄 교체 8,000원/);
+  assert.deepEqual(telegram.messages, []);
 }));
 
 test("cancels a pending repair log with /cancel", async () => withDatabase(async (database) => {
@@ -507,7 +513,8 @@ test("cancels a pending repair log with /cancel", async () => withDatabase(async
 
   assert.deepEqual(result, { status: "cancelled" });
   assert.equal(pending.has(123), false);
-  assert.equal(telegram.messages.at(-1).text, REPAIR_CANCELLED_MESSAGE);
+  assert.match(telegram.edits.at(-1).text, new RegExp(`🎸 ${inventory.inventoryCode}`));
+  assert.deepEqual(telegram.deletions.at(-1), { chatId: 123, messageId: 99 });
 }));
 
 test("an unauthorized callback cannot create pending state or access the database", async () => {
@@ -550,7 +557,7 @@ test("does not consume a pending complete-sale interaction", async () => withDat
     step: "AWAITING_SALE_PRICE",
     inventoryItemId: inventory.id,
     inventoryCode: inventory.inventoryCode,
-    detailMessageId: 77,
+    mainMessageId: 77,
   });
 
   const result = await enter(database, "75000", telegram, pending);

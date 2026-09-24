@@ -28,6 +28,7 @@ import {
 } from "./telegram-access.js";
 import {
   answerTelegramCallbackQuery,
+  deleteTelegramMessage,
   editTelegramMessageText,
   getTelegramUpdates,
   sendTelegramMessage,
@@ -98,9 +99,11 @@ export async function handleTelegramUpdate(
     sendMessage,
     editMessage,
     answerCallback,
+    deleteMessage = async () => {},
     allowedChatId,
     pendingInteractions = createPendingInteractionStore(),
     now,
+    logger = console,
   },
 ) {
   const callbackQuery = update?.callback_query;
@@ -174,11 +177,27 @@ export async function handleTelegramUpdate(
     return { status: "ignored" };
   }
 
+  const cleanupMessage = async ({ chatId, messageId }) => {
+    if (!Number.isSafeInteger(messageId)) {
+      return;
+    }
+    try {
+      await deleteMessage({ chatId, messageId });
+    } catch (error) {
+      logger.warn("Failed to clean up Telegram message", {
+        chatId,
+        messageId,
+        error,
+      });
+    }
+  };
+
   const addResult = await handlePendingAddInventoryMessage({
     database,
     message,
     pendingInteractions,
-    sendMessage,
+    editMessage,
+    cleanupMessage,
     now,
   });
   if (addResult !== null) {
@@ -191,6 +210,7 @@ export async function handleTelegramUpdate(
     pendingInteractions,
     sendMessage,
     editMessage,
+    cleanupMessage,
     now,
   });
   if (repairResult !== null) {
@@ -203,6 +223,7 @@ export async function handleTelegramUpdate(
     pendingInteractions,
     sendMessage,
     editMessage,
+    cleanupMessage,
     now,
   });
   if (expenseResult !== null) {
@@ -215,6 +236,7 @@ export async function handleTelegramUpdate(
     pendingInteractions,
     sendMessage,
     editMessage,
+    cleanupMessage,
     now,
   });
   if (pendingResult !== null) {
@@ -237,8 +259,10 @@ export async function handleTelegramUpdate(
   if (name === "/add") {
     return beginAddInventoryFlow({
       chatId: message.chat.id,
+      commandMessageId: message.message_id,
       pendingInteractions,
       sendMessage,
+      cleanupMessage,
     });
   }
   if (name === "/help") {
@@ -260,7 +284,7 @@ export async function processTelegramUpdates(
   let nextOffset = offset;
   for (const update of updates) {
     try {
-      await handleTelegramUpdate(update, dependencies);
+      await handleTelegramUpdate(update, { ...dependencies, logger });
     } catch (error) {
       logger.error("Failed to handle Telegram update", {
         updateId: update.update_id,
@@ -314,6 +338,11 @@ export async function runBot({
     fetchImpl,
     ...callback,
   });
+  const deleteMessage = (message) => deleteTelegramMessage({
+    token,
+    fetchImpl,
+    ...message,
+  });
 
   try {
     await setTelegramCommands({
@@ -334,6 +363,7 @@ export async function runBot({
         sendMessage,
         editMessage,
         answerCallback,
+        deleteMessage,
         allowedChatId: normalizedAllowedChatId,
         pendingInteractions,
         logger,

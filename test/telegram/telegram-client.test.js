@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   answerTelegramCallbackQuery,
+  deleteTelegramMessage,
   editTelegramMessageText,
   getTelegramUpdates,
   setTelegramChatMenuButton,
@@ -103,6 +104,26 @@ test("acknowledges a callback query with a Korean result message", async () => {
   assert.deepEqual(JSON.parse(recorder.requests[0].options.body), {
     callback_query_id: "callback-1",
     text: "수리 중으로 변경했습니다.",
+  });
+});
+
+test("deletes a Telegram message", async () => {
+  const recorder = fetchRecorder(true);
+
+  await deleteTelegramMessage({
+    token: "test-token",
+    chatId: 123,
+    messageId: 45,
+    fetchImpl: recorder.fetchImpl,
+  });
+
+  assert.equal(
+    recorder.requests[0].url,
+    "https://api.telegram.org/bottest-token/deleteMessage",
+  );
+  assert.deepEqual(JSON.parse(recorder.requests[0].options.body), {
+    chat_id: 123,
+    message_id: 45,
   });
 });
 

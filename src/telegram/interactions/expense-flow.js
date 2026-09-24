@@ -16,8 +16,6 @@ export const EXPENSE_AMOUNT_INPUT_PROMPT = "비용을 입력해주세요.\n예: 
 export const INVALID_EXPENSE_AMOUNT_MESSAGE = "비용은 0 이상의 숫자로 입력해주세요.";
 export const NO_PENDING_EXPENSE_MESSAGE = "진행 중인 비용 입력이 없습니다.";
 
-const krwFormatter = new Intl.NumberFormat("ko-KR");
-
 const EXPENSE_TYPES = Object.freeze({
   delivery: Object.freeze({ label: "택배", category: "LOGISTICS" }),
   transport: Object.freeze({ label: "교통비", category: "LOGISTICS" }),
@@ -186,7 +184,7 @@ export async function handleExpenseMenuCallback({
       description: selected.label,
       inventoryItemId: inventory.id,
       inventoryCode: inventory.inventoryCode,
-      detailMessageId: messageId,
+      mainMessageId: messageId,
     });
     await editMessage({
       chatId,
@@ -248,7 +246,7 @@ export async function beginExpenseFlow({
   inventory,
   callbackQuery,
   pendingInteractions,
-  sendMessage,
+  editMessage,
   answerCallback,
 }) {
   const chatId = callbackQuery.message.chat.id;
@@ -257,9 +255,14 @@ export async function beginExpenseFlow({
     step: EXPENSE_INPUT_STEP,
     inventoryItemId: inventory.id,
     inventoryCode: inventory.inventoryCode,
-    detailMessageId: callbackQuery.message.message_id,
+    mainMessageId: callbackQuery.message.message_id,
   });
-  await sendMessage({ chatId, text: EXPENSE_INPUT_PROMPT });
+  await editMessage({
+    chatId,
+    messageId: callbackQuery.message.message_id,
+    text: EXPENSE_INPUT_PROMPT,
+    replyMarkup: { inline_keyboard: [] },
+  });
   await answerCallback({ callbackQueryId: callbackQuery.id });
 
   return {
@@ -272,8 +275,8 @@ export async function handlePendingExpenseMessage({
   database,
   message,
   pendingInteractions,
-  sendMessage,
   editMessage,
+  cleanupMessage,
   now = () => new Date(),
 }) {
   const interaction = pendingInteractions.get(message.chat.id);
@@ -281,20 +284,21 @@ export async function handlePendingExpenseMessage({
     return null;
   }
 
+  await cleanupMessage({
+    chatId: message.chat.id,
+    messageId: message.message_id,
+  });
+
   if (message.text.trim() === "/cancel") {
     pendingInteractions.delete(message.chat.id);
     await editMessage({
       chatId: message.chat.id,
-      messageId: interaction.detailMessageId,
+      messageId: interaction.mainMessageId,
       ...renderUpdatedInventory(
         database,
         interaction.inventoryItemId,
         interaction.inventoryCode,
       ),
-    });
-    await sendMessage({
-      chatId: message.chat.id,
-      text: EXPENSE_CANCELLED_MESSAGE,
     });
     return { status: "cancelled" };
   }
@@ -309,11 +313,13 @@ export async function handlePendingExpenseMessage({
     })
     : parseExpenseInput(message.text);
   if (parsed === null) {
-    await sendMessage({
+    await editMessage({
       chatId: message.chat.id,
+      messageId: interaction.mainMessageId,
       text: isAmountOnly
         ? INVALID_EXPENSE_AMOUNT_MESSAGE
         : INVALID_EXPENSE_INPUT_MESSAGE,
+      replyMarkup: { inline_keyboard: [] },
     });
     return { status: "invalid_expense_input" };
   }
@@ -332,15 +338,8 @@ export async function handlePendingExpenseMessage({
   );
   await editMessage({
     chatId: message.chat.id,
-    messageId: interaction.detailMessageId,
+    messageId: interaction.mainMessageId,
     ...updated,
-  });
-  await sendMessage({
-    chatId: message.chat.id,
-    text: [
-      "비용을 추가했습니다.",
-      `${parsed.description} / ${krwFormatter.format(parsed.amountKrw)}원`,
-    ].join("\n"),
   });
 
   return {

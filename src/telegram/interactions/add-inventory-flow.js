@@ -1,4 +1,8 @@
+import { getInventoryDetail } from "../../application/inventory/get-inventory-detail.js";
 import { registerInventory } from "../../application/inventory/register-inventory.js";
+import { renderInventoryActions } from "../render/inventory-action-renderer.js";
+import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
+import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
 
 export const ADD_STEPS = Object.freeze({
   BRAND: "AWAITING_ADD_BRAND",
@@ -20,12 +24,21 @@ export const INVALID_ADD_PRICE_MESSAGE = "가격은 0 이상의 숫자로 입력
 export const ADD_CANCELLED_MESSAGE = "기타 등록을 취소했습니다.";
 
 const GUITAR_TYPES = Object.freeze({
-  acoustic: "ACOUSTIC",
-  electric: "ELECTRIC",
-  other: "OTHER",
+  acoustic: Object.freeze({ value: "ACOUSTIC", label: "어쿠스틱" }),
+  electric: Object.freeze({ value: "ELECTRIC", label: "일렉" }),
+  other: Object.freeze({ value: "OTHER", label: "기타" }),
 });
 
 const krwFormatter = new Intl.NumberFormat("ko-KR");
+
+function cancelKeyboard() {
+  return {
+    inline_keyboard: [[{
+      text: "등록 취소",
+      callback_data: "add:cancel",
+    }]],
+  };
+}
 
 function guitarTypeKeyboard() {
   return {
@@ -38,8 +51,47 @@ function guitarTypeKeyboard() {
         { text: "기타", callback_data: "add:guitar_type:other" },
         { text: "직접 입력", callback_data: "add:guitar_type:custom" },
       ],
+      [{ text: "등록 취소", callback_data: "add:cancel" }],
     ],
   };
+}
+
+function pendingValue(interaction, field, step, formatter = (value) => value) {
+  if (interaction[field] !== undefined) {
+    return formatter(interaction[field]);
+  }
+  return interaction.step === step ? "입력 대기" : "-";
+}
+
+function renderAddCard(interaction, prompt, error = null) {
+  const typeStep = interaction.step === ADD_STEPS.CUSTOM_GUITAR_TYPE
+    ? ADD_STEPS.CUSTOM_GUITAR_TYPE
+    : ADD_STEPS.GUITAR_TYPE;
+  const lines = [
+    "🎸 새 기타 등록",
+    "",
+    `브랜드: ${pendingValue(interaction, "brand", ADD_STEPS.BRAND)}`,
+    `모델: ${pendingValue(interaction, "modelName", ADD_STEPS.MODEL)}`,
+    `종류: ${pendingValue(interaction, "guitarTypeLabel", typeStep)}`,
+    `매입가: ${pendingValue(
+      interaction,
+      "purchasePriceKrw",
+      ADD_STEPS.PURCHASE_PRICE,
+      (value) => `${krwFormatter.format(value)}원`,
+    )}`,
+    `예상 판매가: ${pendingValue(
+      interaction,
+      "expectedSalePriceKrw",
+      ADD_STEPS.EXPECTED_SALE_PRICE,
+      (value) => `${krwFormatter.format(value)}원`,
+    )}`,
+    "",
+  ];
+  if (error !== null) {
+    lines.push(error, "");
+  }
+  lines.push(prompt);
+  return lines.join("\n");
 }
 
 function parsePrice(text) {
@@ -57,17 +109,43 @@ function nonEmptyText(text) {
   return text.trim();
 }
 
+function sentMessageId(sentMessage) {
+  const messageId = sentMessage?.message_id;
+  if (!Number.isSafeInteger(messageId)) {
+    throw new Error("Telegram sendMessage did not return a message_id");
+  }
+  return messageId;
+}
+
+async function editAddCard(editMessage, chatId, interaction, prompt, options = {}) {
+  await editMessage({
+    chatId,
+    messageId: interaction.mainMessageId,
+    text: renderAddCard(interaction, prompt, options.error ?? null),
+    replyMarkup: options.replyMarkup ?? cancelKeyboard(),
+  });
+}
+
 export async function beginAddInventoryFlow({
   chatId,
+  commandMessageId,
   pendingInteractions,
   sendMessage,
+  cleanupMessage,
 }) {
-  pendingInteractions.set(chatId, {
+  const interaction = {
     type: "add_inventory",
     step: ADD_STEPS.BRAND,
+  };
+  const sent = await sendMessage({
+    chatId,
+    text: renderAddCard(interaction, ADD_BRAND_PROMPT),
+    replyMarkup: cancelKeyboard(),
   });
-  await sendMessage({ chatId, text: ADD_BRAND_PROMPT });
-  return { status: "awaiting_add_brand" };
+  const mainMessageId = sentMessageId(sent);
+  pendingInteractions.set(chatId, { ...interaction, mainMessageId });
+  await cleanupMessage({ chatId, messageId: commandMessageId });
+  return { status: "awaiting_add_brand", mainMessageId };
 }
 
 export async function handleAddInventoryCallback({
@@ -76,11 +154,23 @@ export async function handleAddInventoryCallback({
   editMessage,
   answerCallback,
 }) {
+  const chatId = callbackQuery?.message?.chat?.id;
+  const interaction = pendingInteractions.get(chatId);
+  if (callbackQuery?.data === "add:cancel" && interaction?.type === "add_inventory") {
+    pendingInteractions.delete(chatId);
+    await editMessage({
+      chatId,
+      messageId: interaction.mainMessageId,
+      text: ADD_CANCELLED_MESSAGE,
+      replyMarkup: { inline_keyboard: [] },
+    });
+    await answerCallback({ callbackQueryId: callbackQuery.id });
+    return { status: "cancelled" };
+  }
+
   const match = /^add:guitar_type:(acoustic|electric|other|custom)$/.exec(
     callbackQuery?.data ?? "",
   );
-  const chatId = callbackQuery?.message?.chat?.id;
-  const interaction = pendingInteractions.get(chatId);
   if (!match || interaction?.type !== "add_inventory"
     || interaction.step !== ADD_STEPS.GUITAR_TYPE) {
     await answerCallback({
@@ -92,31 +182,30 @@ export async function handleAddInventoryCallback({
 
   const selected = match[1];
   if (selected === "custom") {
-    pendingInteractions.set(chatId, {
+    const updated = {
       ...interaction,
       step: ADD_STEPS.CUSTOM_GUITAR_TYPE,
-    });
-    await editMessage({
+    };
+    pendingInteractions.set(chatId, updated);
+    await editAddCard(
+      editMessage,
       chatId,
-      messageId: callbackQuery.message.message_id,
-      text: ADD_CUSTOM_GUITAR_TYPE_PROMPT,
-      replyMarkup: { inline_keyboard: [] },
-    });
+      updated,
+      ADD_CUSTOM_GUITAR_TYPE_PROMPT,
+    );
     await answerCallback({ callbackQueryId: callbackQuery.id });
     return { status: "awaiting_add_custom_guitar_type" };
   }
 
-  pendingInteractions.set(chatId, {
+  const guitarType = GUITAR_TYPES[selected];
+  const updated = {
     ...interaction,
     step: ADD_STEPS.PURCHASE_PRICE,
-    guitarType: GUITAR_TYPES[selected],
-  });
-  await editMessage({
-    chatId,
-    messageId: callbackQuery.message.message_id,
-    text: ADD_PURCHASE_PRICE_PROMPT,
-    replyMarkup: { inline_keyboard: [] },
-  });
+    guitarType: guitarType.value,
+    guitarTypeLabel: guitarType.label,
+  };
+  pendingInteractions.set(chatId, updated);
+  await editAddCard(editMessage, chatId, updated, ADD_PURCHASE_PRICE_PROMPT);
   await answerCallback({ callbackQueryId: callbackQuery.id });
   return { status: "awaiting_add_purchase_price" };
 }
@@ -125,7 +214,8 @@ export async function handlePendingAddInventoryMessage({
   database,
   message,
   pendingInteractions,
-  sendMessage,
+  editMessage,
+  cleanupMessage,
   now = () => new Date(),
 }) {
   const chatId = message.chat.id;
@@ -134,50 +224,55 @@ export async function handlePendingAddInventoryMessage({
     return null;
   }
 
+  await cleanupMessage({ chatId, messageId: message.message_id });
+
   if (message.text.trim() === "/cancel") {
     pendingInteractions.delete(chatId);
-    await sendMessage({ chatId, text: ADD_CANCELLED_MESSAGE });
+    await editMessage({
+      chatId,
+      messageId: interaction.mainMessageId,
+      text: ADD_CANCELLED_MESSAGE,
+      replyMarkup: { inline_keyboard: [] },
+    });
     return { status: "cancelled" };
   }
 
   if (interaction.step === ADD_STEPS.BRAND) {
     const brand = nonEmptyText(message.text);
     if (brand === null) {
-      await sendMessage({ chatId, text: INVALID_ADD_TEXT_MESSAGE });
+      await editAddCard(editMessage, chatId, interaction, ADD_BRAND_PROMPT, {
+        error: INVALID_ADD_TEXT_MESSAGE,
+      });
       return { status: "invalid_add_brand" };
     }
-    pendingInteractions.set(chatId, {
-      ...interaction,
-      step: ADD_STEPS.MODEL,
-      brand,
-    });
-    await sendMessage({ chatId, text: ADD_MODEL_PROMPT });
+    const updated = { ...interaction, step: ADD_STEPS.MODEL, brand };
+    pendingInteractions.set(chatId, updated);
+    await editAddCard(editMessage, chatId, updated, ADD_MODEL_PROMPT);
     return { status: "awaiting_add_model" };
   }
 
   if (interaction.step === ADD_STEPS.MODEL) {
     const modelName = nonEmptyText(message.text);
     if (modelName === null) {
-      await sendMessage({ chatId, text: INVALID_ADD_TEXT_MESSAGE });
+      await editAddCard(editMessage, chatId, interaction, ADD_MODEL_PROMPT, {
+        error: INVALID_ADD_TEXT_MESSAGE,
+      });
       return { status: "invalid_add_model" };
     }
-    pendingInteractions.set(chatId, {
+    const updated = {
       ...interaction,
       step: ADD_STEPS.GUITAR_TYPE,
       modelName,
-    });
-    await sendMessage({
-      chatId,
-      text: ADD_GUITAR_TYPE_PROMPT,
+    };
+    pendingInteractions.set(chatId, updated);
+    await editAddCard(editMessage, chatId, updated, ADD_GUITAR_TYPE_PROMPT, {
       replyMarkup: guitarTypeKeyboard(),
     });
     return { status: "awaiting_add_guitar_type" };
   }
 
   if (interaction.step === ADD_STEPS.GUITAR_TYPE) {
-    await sendMessage({
-      chatId,
-      text: ADD_GUITAR_TYPE_PROMPT,
+    await editAddCard(editMessage, chatId, interaction, ADD_GUITAR_TYPE_PROMPT, {
       replyMarkup: guitarTypeKeyboard(),
     });
     return { status: "awaiting_add_guitar_type" };
@@ -186,30 +281,50 @@ export async function handlePendingAddInventoryMessage({
   if (interaction.step === ADD_STEPS.CUSTOM_GUITAR_TYPE) {
     const guitarType = nonEmptyText(message.text);
     if (guitarType === null) {
-      await sendMessage({ chatId, text: INVALID_ADD_TEXT_MESSAGE });
+      await editAddCard(
+        editMessage,
+        chatId,
+        interaction,
+        ADD_CUSTOM_GUITAR_TYPE_PROMPT,
+        { error: INVALID_ADD_TEXT_MESSAGE },
+      );
       return { status: "invalid_add_guitar_type" };
     }
-    pendingInteractions.set(chatId, {
+    const updated = {
       ...interaction,
       step: ADD_STEPS.PURCHASE_PRICE,
       guitarType,
-    });
-    await sendMessage({ chatId, text: ADD_PURCHASE_PRICE_PROMPT });
+      guitarTypeLabel: guitarType,
+    };
+    pendingInteractions.set(chatId, updated);
+    await editAddCard(editMessage, chatId, updated, ADD_PURCHASE_PRICE_PROMPT);
     return { status: "awaiting_add_purchase_price" };
   }
 
   if (interaction.step === ADD_STEPS.PURCHASE_PRICE) {
     const purchasePriceKrw = parsePrice(message.text);
     if (purchasePriceKrw === null) {
-      await sendMessage({ chatId, text: INVALID_ADD_PRICE_MESSAGE });
+      await editAddCard(
+        editMessage,
+        chatId,
+        interaction,
+        ADD_PURCHASE_PRICE_PROMPT,
+        { error: INVALID_ADD_PRICE_MESSAGE },
+      );
       return { status: "invalid_add_purchase_price" };
     }
-    pendingInteractions.set(chatId, {
+    const updated = {
       ...interaction,
       step: ADD_STEPS.EXPECTED_SALE_PRICE,
       purchasePriceKrw,
-    });
-    await sendMessage({ chatId, text: ADD_EXPECTED_SALE_PRICE_PROMPT });
+    };
+    pendingInteractions.set(chatId, updated);
+    await editAddCard(
+      editMessage,
+      chatId,
+      updated,
+      ADD_EXPECTED_SALE_PRICE_PROMPT,
+    );
     return { status: "awaiting_add_expected_sale_price" };
   }
 
@@ -219,7 +334,13 @@ export async function handlePendingAddInventoryMessage({
 
   const expectedSalePriceKrw = parsePrice(message.text);
   if (expectedSalePriceKrw === null) {
-    await sendMessage({ chatId, text: INVALID_ADD_PRICE_MESSAGE });
+    await editAddCard(
+      editMessage,
+      chatId,
+      interaction,
+      ADD_EXPECTED_SALE_PRICE_PROMPT,
+      { error: INVALID_ADD_PRICE_MESSAGE },
+    );
     return { status: "invalid_add_expected_sale_price" };
   }
 
@@ -232,20 +353,15 @@ export async function handlePendingAddInventoryMessage({
     registeredAt: now().toISOString(),
   });
   pendingInteractions.delete(chatId);
-  await sendMessage({
+  const detail = getInventoryDetail(database, inventory.id);
+  await editMessage({
     chatId,
-    text: [
-      `🎸 ${inventory.brand} ${inventory.modelName} 등록 완료`,
-      "",
-      `재고번호: ${inventory.inventoryCode}`,
-      `매입가: ${krwFormatter.format(inventory.purchasePriceKrw)}원`,
-      `예상 판매가: ${krwFormatter.format(inventory.expectedSalePriceKrw)}원`,
-      "상태: 재고 보유",
-    ].join("\n"),
-    replyMarkup: { inline_keyboard: [[{
-      text: "상세 보기",
-      callback_data: `inventory:open:${inventory.inventoryCode}`,
-    }]] },
+    messageId: interaction.mainMessageId,
+    text: renderInventoryDetail(detail),
+    replyMarkup: buildInventoryInlineKeyboard(
+      renderInventoryActions(detail.inventory.state),
+      inventory.inventoryCode,
+    ),
   });
   return { status: "inventory_added", inventoryItemId: inventory.id };
 }

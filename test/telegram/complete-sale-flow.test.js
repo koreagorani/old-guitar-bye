@@ -79,13 +79,16 @@ function telegramRecorder() {
   const messages = [];
   const edits = [];
   const answers = [];
+  const deletions = [];
   return {
     messages,
     edits,
     answers,
+    deletions,
     sendMessage: async (message) => messages.push(message),
     editMessage: async (message) => edits.push(message),
     answerCallback: async (answer) => answers.push(answer),
+    deleteMessage: async (message) => deletions.push(message),
   };
 }
 
@@ -110,7 +113,7 @@ function saleListingCallback(saleListingId, chatId = 123) {
 }
 
 function message(text, chatId = 123) {
-  return { message: { chat: { id: chatId }, text } };
+  return { message: { chat: { id: chatId }, message_id: 99, text } };
 }
 
 function dependencies(database, recorder, pendingInteractions) {
@@ -119,6 +122,7 @@ function dependencies(database, recorder, pendingInteractions) {
     sendMessage: recorder.sendMessage,
     editMessage: recorder.editMessage,
     answerCallback: recorder.answerCallback,
+    deleteMessage: recorder.deleteMessage,
     allowedChatId: "123",
     pendingInteractions,
     now: () => new Date("2026-09-15T12:00:00Z"),
@@ -150,7 +154,7 @@ test("starts complete_sale for a FOR_SALE inventory item", async () => withDatab
     status: "awaiting_sale_price",
     inventoryItemId: inventory.id,
   });
-  assert.equal(recorder.messages[0].text, SALE_PRICE_PROMPT);
+  assert.equal(recorder.edits[0].text, SALE_PRICE_PROMPT);
 }));
 
 test("stores an in-memory awaiting-price interaction", async () => withDatabase(async (database) => {
@@ -165,7 +169,7 @@ test("stores an in-memory awaiting-price interaction", async () => withDatabase(
     step: SALE_INPUT_STEPS.PRICE,
     inventoryItemId: inventory.id,
     inventoryCode: inventory.inventoryCode,
-    detailMessageId: 77,
+    mainMessageId: 77,
   });
 }));
 
@@ -229,7 +233,7 @@ test("two active SaleListings ask only with their marketplaces", async () => wit
   assert.deepEqual(result, { status: "awaiting_sale_marketplace" });
   assert.equal(pending.get(123).step, SALE_INPUT_STEPS.MARKETPLACE);
   assert.deepEqual(pending.get(123).saleListingIds, [daangn.id, bunjang.id]);
-  const prompt = recorder.messages.at(-1);
+  const prompt = recorder.edits.at(-1);
   assert.equal(prompt.text, SALE_MARKETPLACE_PROMPT);
   assert.deepEqual(prompt.replyMarkup.inline_keyboard.flat(), [
     { text: "당근", callback_data: `sale:listing:${daangn.id}` },
@@ -256,7 +260,7 @@ test("duplicate marketplace listings are distinguished by asking price", async (
   await begin(database, inventory, recorder, pending);
   await enterPrice(database, "75000", recorder, pending);
 
-  assert.deepEqual(recorder.messages.at(-1).replyMarkup.inline_keyboard.flat(), [
+  assert.deepEqual(recorder.edits.at(-1).replyMarkup.inline_keyboard.flat(), [
     { text: "당근 (80,000원)", callback_data: `sale:listing:${first.id}` },
     { text: "당근 (90,000원)", callback_data: `sale:listing:${second.id}` },
   ]);
@@ -284,7 +288,7 @@ test("text during marketplace selection repeats the actual listing choices", asy
   const result = await enterPrice(database, "당근", recorder, pending);
 
   assert.deepEqual(result, { status: "awaiting_sale_marketplace" });
-  assert.deepEqual(recorder.messages.at(-1).replyMarkup.inline_keyboard.flat(), [
+  assert.deepEqual(recorder.edits.at(-1).replyMarkup.inline_keyboard.flat(), [
     { text: "당근", callback_data: `sale:listing:${first.id}` },
     { text: "번개장터", callback_data: `sale:listing:${second.id}` },
   ]);
@@ -300,7 +304,7 @@ for (const invalidPrice of ["-1", "가격", "1.5", "   "]) {
     const result = await enterPrice(database, invalidPrice, recorder, pending);
 
     assert.deepEqual(result, { status: "invalid_sale_price" });
-    assert.equal(recorder.messages.at(-1).text, INVALID_SALE_PRICE_MESSAGE);
+    assert.equal(recorder.edits.at(-1).text, INVALID_SALE_PRICE_MESSAGE);
     assert.equal(pending.get(123).step, SALE_INPUT_STEPS.PRICE);
   }));
 }
@@ -391,20 +395,17 @@ test("no active SaleListing completes immediately as a direct sale", async () =>
   assert.equal(sale.saleListingId, null);
 }));
 
-test("sends a Korean success message and refreshes the original detail", async () => withDatabase(async (database) => {
+test("refreshes the original detail without a separate success message", async () => withDatabase(async (database) => {
   const inventory = createInventoryFixture(database);
   const recorder = telegramRecorder();
   const pending = createPendingInteractionStore();
   await begin(database, inventory, recorder, pending);
   await enterPrice(database, "75000", recorder, pending);
 
-  assert.equal(recorder.messages.at(-1).text, [
-    "판매 완료했습니다.",
-    "판매가: 75,000원",
-    "판매처: 직거래",
-  ].join("\n"));
-  assert.equal(recorder.edits[0].messageId, 77);
-  assert.match(recorder.edits[0].text, /상태: 판매 완료/);
+  assert.deepEqual(recorder.messages, []);
+  assert.equal(recorder.edits.at(-1).messageId, 77);
+  assert.match(recorder.edits.at(-1).text, /상태: 판매 완료/);
+  assert.match(recorder.edits.at(-1).text, /판매가: 75,000원/);
   assert.equal(pending.has(123), false);
 }));
 
@@ -421,7 +422,8 @@ test("cancels and clears a pending sale with /cancel", async () => withDatabase(
 
   assert.deepEqual(result, { status: "cancelled" });
   assert.equal(pending.has(123), false);
-  assert.equal(recorder.messages.at(-1).text, SALE_CANCELLED_MESSAGE);
+  assert.match(recorder.edits.at(-1).text, new RegExp(`🎸 ${inventory.inventoryCode}`));
+  assert.deepEqual(recorder.deletions.at(-1), { chatId: 123, messageId: 99 });
 }));
 
 test("does not create pending state for an unauthorized user", async () => {

@@ -83,6 +83,20 @@ export function answerTelegramCallbackQuery({
   return callTelegramApi(token, "answerCallbackQuery", body, fetchImpl);
 }
 
+export function deleteTelegramMessage({
+  token,
+  chatId,
+  messageId,
+  fetchImpl = globalThis.fetch,
+}) {
+  return callTelegramApi(
+    token,
+    "deleteMessage",
+    { chat_id: chatId, message_id: messageId },
+    fetchImpl,
+  );
+}
+
 export function getTelegramUpdates({
   token,
   offset = 0,
