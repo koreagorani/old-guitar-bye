@@ -2,7 +2,7 @@ const ALLOWED_TRANSITIONS = new Map([
   ["IN_STOCK", new Set(["REPAIRING", "FOR_SALE"])],
   ["REPAIRING", new Set(["FOR_SALE"])],
   ["FOR_SALE", new Set(["REPAIRING", "SOLD"])],
-  ["SOLD", new Set()],
+  ["SOLD", new Set(["FOR_SALE"])],
 ]);
 
 function assertKnownInventoryState(state, argumentName) {

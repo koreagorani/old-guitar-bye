@@ -240,3 +240,8 @@ export function updateInventoryExpectedSalePrice(
     return findInventoryItemById(database, id);
   });
 }
+
+
+export function restoreSoldInventoryForSale(database, id) {
+  return updateInventoryState(database, id, "FOR_SALE");
+}

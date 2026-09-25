@@ -1,4 +1,5 @@
 import { getInventoryDetail } from "../../application/inventory/get-inventory-detail.js";
+import { cancelSale } from "../../application/sales/cancel-sale.js";
 import {
   findInventoryItemByCode,
   listActiveInventoryItems,
@@ -31,6 +32,7 @@ export const CALLBACK_MESSAGES = Object.freeze({
   start_repair: "수리 중으로 변경했습니다.",
   mark_for_sale: "판매 가능 상태로 변경했습니다.",
   finish_repair: "수리를 완료하고 판매 가능 상태로 변경했습니다.",
+  cancel_sale: "판매를 취소하고 판매 가능 상태로 복구했습니다.",
 });
 
 export const INVALID_CALLBACK_MESSAGE = "올바르지 않은 작업입니다.";
@@ -107,7 +109,7 @@ export async function handleInventoryCallback({
       messageId: callbackQuery.message.message_id,
       text: "수정할 항목을 선택해주세요.",
       replyMarkup: buildInventoryInlineKeyboard(
-        renderInventoryEditMenu(),
+        renderInventoryEditMenu(inventory.state),
         inventory.inventoryCode,
       ),
     });
@@ -135,6 +137,44 @@ export async function handleInventoryCallback({
       editMessage,
       answerCallback,
     });
+  }
+
+  if (action === "cancel_sale") {
+    let restoredInventory;
+    try {
+      restoredInventory = cancelSale(database, inventory.id);
+    } catch (error) {
+      if (!error.message.startsWith("Invalid inventory transition:")) {
+        throw error;
+      }
+      await acknowledge(
+        answerCallback,
+        callbackQuery.id,
+        INVALID_STATE_MESSAGE,
+      );
+      return { status: "invalid_state", action, inventoryCode };
+    }
+
+    const detail = getInventoryDetail(database, restoredInventory.id);
+    await editMessage({
+      chatId: callbackQuery.message.chat.id,
+      messageId: callbackQuery.message.message_id,
+      text: renderInventoryDetail(detail),
+      replyMarkup: buildInventoryInlineKeyboard(
+        renderInventoryActions(detail.inventory.state),
+        inventoryCode,
+      ),
+    });
+    await acknowledge(
+      answerCallback,
+      callbackQuery.id,
+      CALLBACK_MESSAGES.cancel_sale,
+    );
+    return {
+      status: "updated",
+      action,
+      inventoryItemId: restoredInventory.id,
+    };
   }
 
   if (action === "complete_sale") {

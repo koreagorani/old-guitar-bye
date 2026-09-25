@@ -13,6 +13,7 @@ const supportedActions = [
   "edit",
   "edit_purchase_price",
   "edit_expected_sale_price",
+  "cancel_sale",
   "back",
   "start_repair",
   "mark_for_sale",

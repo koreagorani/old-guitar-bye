@@ -13,6 +13,7 @@ const allowedTransitions = [
   ["REPAIRING", "FOR_SALE"],
   ["FOR_SALE", "REPAIRING"],
   ["FOR_SALE", "SOLD"],
+  ["SOLD", "FOR_SALE"],
 ];
 const allowedTransitionKeys = new Set(
   allowedTransitions.map(([current, next]) => `${current}:${next}`),
