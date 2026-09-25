@@ -6,6 +6,7 @@ import {
 } from "../../repositories/inventory-repository.js";
 import { renderInventoryActions } from "../render/inventory-action-renderer.js";
 import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
+import { renderInventoryEditMenu } from "../render/inventory-edit-menu-renderer.js";
 import {
   EMPTY_INVENTORY_MESSAGE,
   renderInventoryList,
@@ -20,6 +21,10 @@ import {
   beginRepairLogFlow,
   beginRepairMenu,
 } from "../interactions/repair-log-flow.js";
+import {
+  beginInventoryPriceEditFlow,
+  EDIT_PRICE_FIELDS,
+} from "../interactions/inventory-edit-price-flow.js";
 import { parseInventoryCallbackData } from "./inventory-callback-parser.js";
 
 export const CALLBACK_MESSAGES = Object.freeze({
@@ -94,6 +99,42 @@ export async function handleInventoryCallback({
       INVENTORY_NOT_FOUND_CALLBACK_MESSAGE,
     );
     return { status: "not_found", inventoryCode };
+  }
+
+  if (action === "edit") {
+    await editMessage({
+      chatId: callbackQuery.message.chat.id,
+      messageId: callbackQuery.message.message_id,
+      text: "수정할 항목을 선택해주세요.",
+      replyMarkup: buildInventoryInlineKeyboard(
+        renderInventoryEditMenu(),
+        inventory.inventoryCode,
+      ),
+    });
+    await acknowledge(answerCallback, callbackQuery.id, null);
+    return { status: "edit_menu", inventoryItemId: inventory.id };
+  }
+
+  if (action === "edit_purchase_price") {
+    return beginInventoryPriceEditFlow({
+      inventory,
+      field: EDIT_PRICE_FIELDS.PURCHASE,
+      callbackQuery,
+      pendingInteractions,
+      editMessage,
+      answerCallback,
+    });
+  }
+
+  if (action === "edit_expected_sale_price") {
+    return beginInventoryPriceEditFlow({
+      inventory,
+      field: EDIT_PRICE_FIELDS.EXPECTED_SALE,
+      callbackQuery,
+      pendingInteractions,
+      editMessage,
+      answerCallback,
+    });
   }
 
   if (action === "complete_sale") {

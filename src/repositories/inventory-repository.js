@@ -192,3 +192,51 @@ export function updateInventoryState(database, id, nextState) {
     return updated;
   });
 }
+
+
+export function updateInventoryPurchasePrice(database, id, purchasePriceKrw) {
+  assertPositiveId(id, "id");
+  assertNullablePrice(purchasePriceKrw, "purchasePriceKrw");
+  if (purchasePriceKrw === null) {
+    throw new TypeError("purchasePriceKrw must be a non-negative safe integer");
+  }
+
+  return withImmediateTransaction(database, () => {
+    const current = findInventoryItemById(database, id);
+    if (!current) {
+      throw new Error(`Inventory item not found: ${id}`);
+    }
+
+    database.prepare(`
+      UPDATE inventory_items
+      SET purchase_price_krw = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(purchasePriceKrw, id);
+
+    return findInventoryItemById(database, id);
+  });
+}
+
+export function updateInventoryExpectedSalePrice(
+  database,
+  id,
+  expectedSalePriceKrw,
+) {
+  assertPositiveId(id, "id");
+  assertNullablePrice(expectedSalePriceKrw, "expectedSalePriceKrw");
+
+  return withImmediateTransaction(database, () => {
+    const current = findInventoryItemById(database, id);
+    if (!current) {
+      throw new Error(`Inventory item not found: ${id}`);
+    }
+
+    database.prepare(`
+      UPDATE inventory_items
+      SET expected_sale_price_krw = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(expectedSalePriceKrw, id);
+
+    return findInventoryItemById(database, id);
+  });
+}

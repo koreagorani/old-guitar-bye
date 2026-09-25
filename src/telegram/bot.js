@@ -13,6 +13,9 @@ import {
   handlePendingExpenseMessage,
 } from "./interactions/expense-flow.js";
 import {
+  handlePendingInventoryPriceEditMessage,
+} from "./interactions/inventory-edit-price-flow.js";
+import {
   handlePendingRepairMessage,
   handleRepairMenuCallback,
 } from "./interactions/repair-log-flow.js";
@@ -228,6 +231,17 @@ export async function handleTelegramUpdate(
   });
   if (expenseResult !== null) {
     return expenseResult;
+  }
+
+  const editPriceResult = await handlePendingInventoryPriceEditMessage({
+    database,
+    message,
+    pendingInteractions,
+    editMessage,
+    cleanupMessage,
+  });
+  if (editPriceResult !== null) {
+    return editPriceResult;
   }
 
   const pendingResult = await handlePendingSaleMessage({
