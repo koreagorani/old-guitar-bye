@@ -18,3 +18,4 @@
 ## Telegram bot
 
 읽기 전용 봇은 `TELEGRAM_BOT_TOKEN`, `DATABASE_PATH`, `TELEGRAM_ALLOWED_CHAT_ID=<아버지 chat id>`를 설정한 뒤 `npm run bot`으로 실행합니다. Bot token과 chat ID는 source code에 hard-code하거나 Git에 commit하지 않습니다.
+
