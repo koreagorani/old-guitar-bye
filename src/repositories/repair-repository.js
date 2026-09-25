@@ -109,3 +109,52 @@ export function listRepairLogsByInventoryItemId(database, inventoryItemId) {
     ORDER BY performed_at ASC, id ASC
   `).all(inventoryItemId).map((row) => ({ ...row }));
 }
+
+
+export function updateRepairLog(
+  database,
+  inventoryItemId,
+  repairLogId,
+  changes,
+) {
+  assertPositiveId(inventoryItemId, "inventoryItemId");
+  assertPositiveId(repairLogId, "repairLogId");
+  if (changes === null || typeof changes !== "object" || Array.isArray(changes)) {
+    throw new TypeError("changes must be an object");
+  }
+
+  const hasType = Object.hasOwn(changes, "type");
+  const hasCost = Object.hasOwn(changes, "costKrw");
+  if (!hasType && !hasCost) {
+    throw new TypeError("changes must include type or costKrw");
+  }
+  if (hasType) {
+    assertNonEmptyString(changes.type, "type");
+  }
+  if (hasCost) {
+    assertNonNegativeInteger(changes.costKrw, "costKrw");
+  }
+
+  const existing = findRepairLogById(database, repairLogId);
+  if (!existing) {
+    throw new Error(`Repair log not found: ${repairLogId}`);
+  }
+  if (existing.inventoryItemId !== inventoryItemId) {
+    throw new Error(
+      `Repair log ${repairLogId} does not belong to inventory item ${inventoryItemId}`,
+    );
+  }
+
+  database.prepare(`
+    UPDATE repair_logs
+    SET type = ?, cost_krw = ?
+    WHERE id = ? AND inventory_item_id = ?
+  `).run(
+    hasType ? changes.type.trim() : existing.type,
+    hasCost ? changes.costKrw : existing.costKrw,
+    repairLogId,
+    inventoryItemId,
+  );
+
+  return findRepairLogById(database, repairLogId);
+}

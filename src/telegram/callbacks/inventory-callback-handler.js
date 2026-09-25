@@ -26,6 +26,7 @@ import {
   beginInventoryPriceEditFlow,
   EDIT_PRICE_FIELDS,
 } from "../interactions/inventory-edit-price-flow.js";
+import { beginRecordEditList } from "../interactions/inventory-record-edit-flow.js";
 import { parseInventoryCallbackData } from "./inventory-callback-parser.js";
 
 export const CALLBACK_MESSAGES = Object.freeze({
@@ -109,12 +110,39 @@ export async function handleInventoryCallback({
       messageId: callbackQuery.message.message_id,
       text: "수정할 항목을 선택해주세요.",
       replyMarkup: buildInventoryInlineKeyboard(
-        renderInventoryEditMenu(inventory.state),
+        renderInventoryEditMenu(inventory.state, {
+          hasRepairLogs: getInventoryDetail(database, inventory.id).repairs.length > 0,
+          hasExpenses: getInventoryDetail(database, inventory.id).expenses.length > 0,
+        }),
         inventory.inventoryCode,
       ),
     });
     await acknowledge(answerCallback, callbackQuery.id, null);
     return { status: "edit_menu", inventoryItemId: inventory.id };
+  }
+
+  if (action === "edit_repair_log") {
+    return beginRecordEditList({
+      database,
+      inventory,
+      kind: "repair",
+      callbackQuery,
+      pendingInteractions,
+      editMessage,
+      answerCallback,
+    });
+  }
+
+  if (action === "edit_expense_record") {
+    return beginRecordEditList({
+      database,
+      inventory,
+      kind: "expense",
+      callbackQuery,
+      pendingInteractions,
+      editMessage,
+      answerCallback,
+    });
   }
 
   if (action === "edit_purchase_price") {

@@ -16,6 +16,10 @@ import {
   handlePendingInventoryPriceEditMessage,
 } from "./interactions/inventory-edit-price-flow.js";
 import {
+  handlePendingRecordEditMessage,
+  handleRecordEditCallback,
+} from "./interactions/inventory-record-edit-flow.js";
+import {
   handlePendingRepairMessage,
   handleRepairMenuCallback,
 } from "./interactions/repair-log-flow.js";
@@ -150,6 +154,15 @@ export async function handleTelegramUpdate(
             now,
           });
         }
+        if (callbackQuery.data?.startsWith("record:")) {
+          return handleRecordEditCallback({
+            database,
+            callbackQuery,
+            pendingInteractions,
+            editMessage,
+            answerCallback: acknowledge,
+          });
+        }
         if (callbackQuery.data?.startsWith("expense:")) {
           return handleExpenseMenuCallback({
             database,
@@ -231,6 +244,17 @@ export async function handleTelegramUpdate(
   });
   if (expenseResult !== null) {
     return expenseResult;
+  }
+
+  const recordEditResult = await handlePendingRecordEditMessage({
+    database,
+    message,
+    pendingInteractions,
+    editMessage,
+    cleanupMessage,
+  });
+  if (recordEditResult !== null) {
+    return recordEditResult;
   }
 
   const editPriceResult = await handlePendingInventoryPriceEditMessage({

@@ -17,12 +17,21 @@ const CANCEL_SALE_ACTION = Object.freeze({
 
 const BACK_ACTION = Object.freeze({ id: "back", label: "뒤로" });
 
-export function renderInventoryEditMenu(inventoryState) {
+export function renderInventoryEditMenu(
+  inventoryState,
+  { hasRepairLogs = false, hasExpenses = false } = {},
+) {
   if (!INVENTORY_STATES.has(inventoryState)) {
     throw new TypeError(`Unknown inventory state: ${String(inventoryState)}`);
   }
 
   const primaryActions = EDIT_ACTIONS.map((action) => ({ ...action }));
+  if (hasRepairLogs) {
+    primaryActions.push({ id: "edit_repair_log", label: "수리 기록 수정" });
+  }
+  if (hasExpenses) {
+    primaryActions.push({ id: "edit_expense_record", label: "비용 기록 수정" });
+  }
   if (inventoryState === "SOLD") {
     primaryActions.push({ ...CANCEL_SALE_ACTION });
   }

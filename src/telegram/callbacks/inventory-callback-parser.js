@@ -6,6 +6,8 @@ const INVENTORY_ACTIONS = new Set([
   "edit",
   "edit_purchase_price",
   "edit_expected_sale_price",
+  "edit_repair_log",
+  "edit_expense_record",
   "cancel_sale",
   "back",
   "start_repair",

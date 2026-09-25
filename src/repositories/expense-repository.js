@@ -108,3 +108,60 @@ export function listExpensesByInventoryItemId(database, inventoryItemId) {
     ORDER BY occurred_at ASC, id ASC
   `).all(inventoryItemId).map((row) => ({ ...row }));
 }
+
+
+export function updateExpense(
+  database,
+  inventoryItemId,
+  expenseId,
+  changes,
+) {
+  assertPositiveId(inventoryItemId, "inventoryItemId");
+  assertPositiveId(expenseId, "expenseId");
+  if (changes === null || typeof changes !== "object" || Array.isArray(changes)) {
+    throw new TypeError("changes must be an object");
+  }
+
+  const hasCategory = Object.hasOwn(changes, "category");
+  const hasAmount = Object.hasOwn(changes, "amountKrw");
+  const hasNote = Object.hasOwn(changes, "note");
+  if (!hasCategory && !hasAmount && !hasNote) {
+    throw new TypeError("changes must include category, amountKrw, or note");
+  }
+  if (hasCategory) {
+    assertNonEmptyString(changes.category, "category");
+    if (!EXPENSE_CATEGORIES.has(changes.category)) {
+      throw new TypeError(`Unknown expense category: ${changes.category}`);
+    }
+  }
+  if (hasAmount) {
+    assertNonNegativeInteger(changes.amountKrw, "amountKrw");
+  }
+  if (hasNote) {
+    assertNullableString(changes.note, "note");
+  }
+
+  const existing = findExpenseById(database, expenseId);
+  if (!existing) {
+    throw new Error(`Expense not found: ${expenseId}`);
+  }
+  if (existing.inventoryItemId !== inventoryItemId) {
+    throw new Error(
+      `Expense ${expenseId} does not belong to inventory item ${inventoryItemId}`,
+    );
+  }
+
+  database.prepare(`
+    UPDATE expenses
+    SET category = ?, amount_krw = ?, note = ?
+    WHERE id = ? AND inventory_item_id = ?
+  `).run(
+    hasCategory ? changes.category : existing.category,
+    hasAmount ? changes.amountKrw : existing.amountKrw,
+    hasNote ? changes.note : existing.note,
+    expenseId,
+    inventoryItemId,
+  );
+
+  return findExpenseById(database, expenseId);
+}

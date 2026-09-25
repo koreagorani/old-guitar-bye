@@ -16,7 +16,7 @@ export const EXPENSE_AMOUNT_INPUT_PROMPT = "비용을 입력해주세요.\n예: 
 export const INVALID_EXPENSE_AMOUNT_MESSAGE = "비용은 0 이상의 숫자로 입력해주세요.";
 export const NO_PENDING_EXPENSE_MESSAGE = "진행 중인 비용 입력이 없습니다.";
 
-const EXPENSE_TYPES = Object.freeze({
+export const EXPENSE_TYPES = Object.freeze({
   delivery: Object.freeze({ label: "택배", category: "LOGISTICS" }),
   transport: Object.freeze({ label: "교통비", category: "LOGISTICS" }),
   other: Object.freeze({ label: "기타", category: "OTHER" }),
