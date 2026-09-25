@@ -2,6 +2,7 @@ import { getInventoryDetail } from "../../application/inventory/get-inventory-de
 import { registerInventory } from "../../application/inventory/register-inventory.js";
 import { renderInventoryActions } from "../render/inventory-action-renderer.js";
 import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
+import { renderAddInventoryCard } from "../render/add-inventory-card-renderer.js";
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
 
 export const ADD_STEPS = Object.freeze({
@@ -29,8 +30,6 @@ const GUITAR_TYPES = Object.freeze({
   other: Object.freeze({ value: "OTHER", label: "기타" }),
 });
 
-const krwFormatter = new Intl.NumberFormat("ko-KR");
-
 function cancelKeyboard() {
   return {
     inline_keyboard: [[{
@@ -54,44 +53,6 @@ function guitarTypeKeyboard() {
       [{ text: "등록 취소", callback_data: "add:cancel" }],
     ],
   };
-}
-
-function pendingValue(interaction, field, step, formatter = (value) => value) {
-  if (interaction[field] !== undefined) {
-    return formatter(interaction[field]);
-  }
-  return interaction.step === step ? "입력 대기" : "-";
-}
-
-function renderAddCard(interaction, prompt, error = null) {
-  const typeStep = interaction.step === ADD_STEPS.CUSTOM_GUITAR_TYPE
-    ? ADD_STEPS.CUSTOM_GUITAR_TYPE
-    : ADD_STEPS.GUITAR_TYPE;
-  const lines = [
-    "🎸 새 기타 등록",
-    "",
-    `브랜드: ${pendingValue(interaction, "brand", ADD_STEPS.BRAND)}`,
-    `모델: ${pendingValue(interaction, "modelName", ADD_STEPS.MODEL)}`,
-    `종류: ${pendingValue(interaction, "guitarTypeLabel", typeStep)}`,
-    `매입가: ${pendingValue(
-      interaction,
-      "purchasePriceKrw",
-      ADD_STEPS.PURCHASE_PRICE,
-      (value) => `${krwFormatter.format(value)}원`,
-    )}`,
-    `예상 판매가: ${pendingValue(
-      interaction,
-      "expectedSalePriceKrw",
-      ADD_STEPS.EXPECTED_SALE_PRICE,
-      (value) => `${krwFormatter.format(value)}원`,
-    )}`,
-    "",
-  ];
-  if (error !== null) {
-    lines.push(error, "");
-  }
-  lines.push(prompt);
-  return lines.join("\n");
 }
 
 function parsePrice(text) {
@@ -121,7 +82,12 @@ async function editAddCard(editMessage, chatId, interaction, prompt, options = {
   await editMessage({
     chatId,
     messageId: interaction.mainMessageId,
-    text: renderAddCard(interaction, prompt, options.error ?? null),
+    text: renderAddInventoryCard({
+      interaction,
+      steps: ADD_STEPS,
+      prompt,
+      error: options.error ?? null,
+    }),
     replyMarkup: options.replyMarkup ?? cancelKeyboard(),
   });
 }
@@ -139,7 +105,11 @@ export async function beginAddInventoryFlow({
   };
   const sent = await sendMessage({
     chatId,
-    text: renderAddCard(interaction, ADD_BRAND_PROMPT),
+    text: renderAddInventoryCard({
+      interaction,
+      steps: ADD_STEPS,
+      prompt: ADD_BRAND_PROMPT,
+    }),
     replyMarkup: cancelKeyboard(),
   });
   const mainMessageId = sentMessageId(sent);

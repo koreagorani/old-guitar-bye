@@ -271,3 +271,29 @@ test("unauthorized users cannot start registration or access the database", asyn
   assert.deepEqual(telegram.messages, []);
   assert.deepEqual(telegram.deletions, []);
 });
+
+
+test("the full add flow keeps one bot card through brand, model, type, and completion", async () => withDatabase(async (database) => {
+  const telegram = recorder();
+  const pending = createPendingInteractionStore();
+
+  await send(database, "/add", telegram, pending, 90);
+  await send(database, "Yamaha", telegram, pending, 91);
+  await send(database, "F310", telegram, pending, 92);
+  await chooseType(database, "other", telegram, pending);
+  await send(database, "20000", telegram, pending, 93);
+  await send(database, "80000", telegram, pending, 94);
+
+  assert.equal(telegram.messages.length, 1);
+  assert.ok(telegram.edits.length >= 4);
+  assert.ok(telegram.edits.every(({ messageId }) => messageId === 77));
+  assert.deepEqual(
+    telegram.deletions,
+    [90, 91, 92, 93, 94].map((messageId) => ({ chatId: 123, messageId })),
+  );
+  assert.match(telegram.edits[0].text, /브랜드: Yamaha/);
+  assert.match(telegram.edits[1].text, /모델: F310/);
+  assert.match(telegram.edits[2].text, /종류: 기타/);
+  assert.match(telegram.edits.at(-1).text, /🎸 G-0001 Yamaha F310/);
+  assert.equal(findInventoryItemByCode(database, "G-0001").state, "IN_STOCK");
+}));
