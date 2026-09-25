@@ -243,5 +243,15 @@ export function updateInventoryExpectedSalePrice(
 
 
 export function restoreSoldInventoryForSale(database, id) {
+  assertPositiveId(id, "id");
+  const current = findInventoryItemById(database, id);
+  if (!current) {
+    throw new Error(`Inventory item not found: ${id}`);
+  }
+  if (current.state !== "SOLD") {
+    throw new Error(
+      `Invalid inventory transition: ${current.state} -> FOR_SALE`,
+    );
+  }
   return updateInventoryState(database, id, "FOR_SALE");
 }
