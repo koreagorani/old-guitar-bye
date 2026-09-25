@@ -20,7 +20,7 @@ export const INVALID_EDIT_PRICE_MESSAGE =
   "금액은 0 이상의 숫자로 입력해주세요.";
 
 function parsePrice(text) {
-  if (typeof text !== "string" || !/^\\d+$/.test(text.trim())) {
+  if (typeof text !== "string" || !/^\d+$/.test(text.trim())) {
     return null;
   }
   const price = Number(text.trim());
