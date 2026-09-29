@@ -36,12 +36,21 @@ function looksBlocked(text) {
     || normalized.includes("access denied");
 }
 
-async function fetchText(fetchImpl, url, userAgent) {
-  const response = await fetchImpl(url, {
-    method: "GET",
-    headers: headers(userAgent, "text/html,application/xhtml+xml"),
-    redirect: "follow",
-  });
+async function fetchText(fetchImpl, url, userAgent, timeoutMs) {
+  let response;
+  try {
+    response = await fetchImpl(url, {
+      method: "GET",
+      headers: headers(userAgent, "text/html,application/xhtml+xml"),
+      redirect: "follow",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    throw new DaangnAccessError(
+      `Daangn request failed before receiving a response: ${error.message}`,
+      { url: String(url) },
+    );
+  }
   if (!response.ok) {
     throw new DaangnAccessError(
       `Daangn request failed with HTTP ${response.status}`,
@@ -58,12 +67,21 @@ async function fetchText(fetchImpl, url, userAgent) {
   return { text, url: response.url || String(url) };
 }
 
-async function fetchJson(fetchImpl, url, userAgent) {
-  const response = await fetchImpl(url, {
-    method: "GET",
-    headers: headers(userAgent, "application/json"),
-    redirect: "follow",
-  });
+async function fetchJson(fetchImpl, url, userAgent, timeoutMs) {
+  let response;
+  try {
+    response = await fetchImpl(url, {
+      method: "GET",
+      headers: headers(userAgent, "application/json"),
+      redirect: "follow",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    throw new DaangnAccessError(
+      `Daangn request failed before receiving a response: ${error.message}`,
+      { url: String(url) },
+    );
+  }
   if (!response.ok) {
     throw new DaangnAccessError(
       `Daangn request failed with HTTP ${response.status}`,
@@ -96,9 +114,13 @@ function chooseRegion(locations, requestedRegion) {
 export function createDaangnClient({
   fetchImpl = globalThis.fetch,
   userAgent = DEFAULT_USER_AGENT,
+  timeoutMs = 15000,
 } = {}) {
   assertFetch(fetchImpl);
   assertNonEmptyString(userAgent, "userAgent");
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new TypeError("timeoutMs must be a positive safe integer");
+  }
 
   return {
     async resolveRegion(regionName) {
@@ -109,6 +131,7 @@ export function createDaangnClient({
         fetchImpl,
         url,
         userAgent,
+        timeoutMs,
       );
       const selected = chooseRegion(data?.locations, regionName.trim());
       if (!selected) {
@@ -145,6 +168,7 @@ export function createDaangnClient({
         fetchImpl,
         url,
         userAgent,
+        timeoutMs,
       );
       return { html, sourceUrl };
     },

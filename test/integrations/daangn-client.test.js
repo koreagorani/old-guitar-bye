@@ -81,3 +81,11 @@ test("stops when an access challenge is returned", async () => {
     /access challenge/,
   );
 });
+
+
+test("validates request timeout", () => {
+  assert.throws(
+    () => createDaangnClient({ fetchImpl: async () => {}, timeoutMs: 0 }),
+    /timeoutMs must be a positive safe integer/,
+  );
+});
