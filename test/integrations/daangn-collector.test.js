@@ -11,7 +11,7 @@ import {
 } from "../../src/integrations/daangn/daangn-collector.js";
 
 const fixture = readFileSync(
-  new URL("../fixtures/daangn-search.html", import.meta.url),
+  new URL("../fixtures/daangn-live-remix-search.html", import.meta.url),
   "utf8",
 );
 
@@ -108,7 +108,7 @@ test("repeated collection upserts the same external listing instead of duplicati
   assert.equal(
     database.prepare(
       "SELECT last_seen_at AS lastSeenAt FROM listings WHERE external_listing_id = ?",
-    ).get("g110abc123").lastSeenAt,
+    ).get("live001").lastSeenAt,
     "2026-09-29T11:00:00.000Z",
   );
 }));

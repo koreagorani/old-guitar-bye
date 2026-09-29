@@ -154,11 +154,8 @@ export function createDaangnClient({
 
     async search({ keyword, regionSlug = null }) {
       assertNonEmptyString(keyword, "keyword");
-      const url = new URL(
-        regionSlug ? "/kr/buy-sell/all/" : "/kr/buy-sell/",
-        DAANGN_BASE_URL,
-      );
-      url.searchParams.set("search", keyword.trim());
+      const url = new URL("/kr/search/buy-sell/", DAANGN_BASE_URL);
+      url.searchParams.set("q", keyword.trim());
       url.searchParams.set("only_on_sale", "true");
       if (regionSlug !== null) {
         assertNonEmptyString(regionSlug, "regionSlug");

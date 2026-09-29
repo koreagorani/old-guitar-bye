@@ -42,6 +42,51 @@ function extractBalancedJson(source, marker, openCharacter) {
   return null;
 }
 
+function remixLoaderArticles(html) {
+  const markers = [
+    "window.__remixContext =",
+    "window.__remixContext=",
+  ];
+  let context = null;
+
+  for (const marker of markers) {
+    const json = extractBalancedJson(html, marker, "{");
+    if (!json) {
+      continue;
+    }
+    try {
+      context = JSON.parse(json);
+      break;
+    } catch {
+      continue;
+    }
+  }
+
+  const loaderData = context?.state?.loaderData;
+  if (!loaderData || typeof loaderData !== "object") {
+    return [];
+  }
+
+  const articles = [];
+  for (const [routeKey, routeValue] of Object.entries(loaderData)) {
+    if (!routeKey.includes("buy-sell")
+      || routeValue === null
+      || typeof routeValue !== "object") {
+      continue;
+    }
+
+    if (Array.isArray(routeValue.buySellArticles)) {
+      articles.push(...routeValue.buySellArticles);
+      continue;
+    }
+
+    if (Array.isArray(routeValue.allPage?.fleamarketArticles)) {
+      articles.push(...routeValue.allPage.fleamarketArticles);
+    }
+  }
+  return articles;
+}
+
 function embeddedArticles(html) {
   for (const marker of ['"fleamarketArticles":', '\\"fleamarketArticles\\":']) {
     const json = extractBalancedJson(html, marker, "[");
@@ -184,6 +229,7 @@ export function normalizeDaangnArticle(raw, {
     url,
     locationText: locationText(raw),
     sellerName: sellerName(raw),
+    status: typeof raw.status === "string" ? raw.status : null,
     postedAt: typeof raw.createdAt === "string"
       ? raw.createdAt
       : typeof raw.postedAt === "string"
@@ -204,9 +250,12 @@ export function parseDaangnSearchHtml(html, context = {}) {
   if (typeof html !== "string") {
     throw new TypeError("html must be a string");
   }
-  const rawArticles = embeddedArticles(html);
-  const fallbackArticles = rawArticles.length > 0
-    ? rawArticles
+  const liveArticles = remixLoaderArticles(html);
+  const legacyArticles = liveArticles.length > 0
+    ? liveArticles
+    : embeddedArticles(html);
+  const fallbackArticles = legacyArticles.length > 0
+    ? legacyArticles
     : ldItemListArticles(html);
   return fallbackArticles
     .map((raw) => normalizeDaangnArticle(raw, context))

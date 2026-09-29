@@ -32,7 +32,7 @@ try {
   const savedIds = new Set(persisted.saved.map(({ externalListingId }) => externalListingId));
   const statusCounts = Object.create(null);
   for (const candidate of collected.candidates) {
-    const status = candidate.sourceMetadata.status ?? "UNKNOWN";
+    const status = candidate.status ?? candidate.sourceMetadata.status ?? "UNKNOWN";
     statusCounts[status] = (statusCounts[status] ?? 0) + 1;
   }
 
@@ -42,12 +42,13 @@ try {
     locationText: candidate.locationText,
     url: candidate.url,
     externalListingId: candidate.externalListingId,
-    status: candidate.sourceMetadata.status,
+    status: candidate.status,
     dbSaved: savedIds.has(candidate.externalListingId),
   }));
 
   console.log("DAANGN_SMOKE_RESULT=" + JSON.stringify({
     success: true,
+    parserShape: "remix-loaderData-buySellArticles",
     keywords,
     requests: collected.sources.length,
     candidateCount: collected.candidates.length,

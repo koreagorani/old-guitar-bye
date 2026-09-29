@@ -31,8 +31,8 @@ test("builds a public search URL with keyword and region query", async () => {
   });
   await client.search({ keyword: "통기타", regionSlug: "연수동-1234" });
   const url = new URL(calls[0].url);
-  assert.equal(url.pathname, "/kr/buy-sell/all/");
-  assert.equal(url.searchParams.get("search"), "통기타");
+  assert.equal(url.pathname, "/kr/search/buy-sell/");
+  assert.equal(url.searchParams.get("q"), "통기타");
   assert.equal(url.searchParams.get("in"), "연수동-1234");
   assert.equal(url.searchParams.get("only_on_sale"), "true");
 });
