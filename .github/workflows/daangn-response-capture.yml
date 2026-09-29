@@ -1,0 +1,21 @@
+name: Daangn response capture
+
+on:
+  push:
+    paths:
+      - ".github/workflows/daangn-response-capture.yml"
+      - "scripts/capture-daangn-response.js"
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Capture one live Daangn search response
+        run: node scripts/capture-daangn-response.js
