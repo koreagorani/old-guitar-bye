@@ -1,6 +1,7 @@
-const url = new URL("https://www.daangn.com/kr/buy-sell/");
-url.searchParams.set("search", "통기타");
+const url = new URL("https://www.daangn.com/kr/search/buy-sell/");
+url.searchParams.set("q", "통기타");
 url.searchParams.set("only_on_sale", "true");
+url.searchParams.set("in", "역삼동-6035");
 
 const response = await fetch(url, {
   method: "GET",
@@ -11,65 +12,98 @@ const response = await fetch(url, {
   redirect: "follow",
   signal: AbortSignal.timeout(15000),
 });
-
 const html = await response.text();
 
-function around(marker, radius = 900) {
-  const index = html.indexOf(marker);
-  if (index < 0) return null;
-  return html.slice(Math.max(0, index - radius), Math.min(html.length, index + marker.length + radius));
+function extractBalancedObject(source, marker) {
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex < 0) return null;
+  const start = source.indexOf("{", markerIndex + marker.length);
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < source.length; i += 1) {
+    const ch = source[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  return null;
 }
 
-const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)]
-  .map((match, index) => {
-    const attrs = match[1] ?? "";
-    const body = match[2] ?? "";
-    const type = /type=["']([^"']+)["']/i.exec(attrs)?.[1] ?? null;
-    const id = /id=["']([^"']+)["']/i.exec(attrs)?.[1] ?? null;
-    const src = /src=["']([^"']+)["']/i.exec(attrs)?.[1] ?? null;
-    const interesting = /buy-sell|fleamarket|remix|loaderData|__next|search|article|product/i.test(body);
-    return {
-      index,
-      type,
-      id,
-      src,
-      length: body.length,
-      interesting,
-      preview: interesting ? body.slice(0, 1600) : null,
-    };
-  });
+const json = extractBalancedObject(html, "window.__remixContext =");
+const context = json ? JSON.parse(json) : null;
+const loaderData = context?.state?.loaderData ?? {};
 
-const hrefs = [...html.matchAll(/href=["']([^"']*\/kr\/buy-sell\/[^"']+)["']/gi)]
-  .map((match) => match[1])
-  .slice(0, 20);
+const arrays = [];
+const listingLike = [];
+const seen = new Set();
 
-const fetchLike = [...html.matchAll(/https?:\\?\/\\?\/[^"'<>\s]+|\/kr\/api\/[^"'<>\s]+|_data=[^"'<>\s&]+/gi)]
-  .map((match) => match[0])
-  .filter((value) => /api|_data|buy-sell/i.test(value))
-  .slice(0, 40);
+function walk(value, path, depth = 0) {
+  if (depth > 10 || value === null || typeof value !== "object") return;
+  if (seen.has(value)) return;
+  seen.add(value);
 
-console.log("DAANGN_CAPTURE=" + JSON.stringify({
-  ok: response.ok,
+  if (Array.isArray(value)) {
+    arrays.push({
+      path,
+      length: value.length,
+      firstType: value.length === 0 ? null : typeof value[0],
+      firstKeys: value[0] && typeof value[0] === "object" && !Array.isArray(value[0])
+        ? Object.keys(value[0]).slice(0, 30)
+        : [],
+    });
+    const firstObject = value.find(
+      (item) => item && typeof item === "object" && !Array.isArray(item),
+    );
+    if (firstObject) {
+      const keys = Object.keys(firstObject);
+      if (keys.some((key) => [
+        "title","price","href","id","status","createdAt","region","webUrl","url",
+      ].includes(key))) {
+        listingLike.push({
+          path,
+          length: value.length,
+          sample: value.slice(0, 3),
+        });
+      }
+    }
+    for (let i = 0; i < Math.min(value.length, 3); i += 1) {
+      walk(value[i], `${path}[${i}]`, depth + 1);
+    }
+    return;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    walk(child, path ? `${path}.${key}` : key, depth + 1);
+  }
+}
+
+walk(loaderData, "loaderData");
+
+console.log("DAANGN_STRUCTURE=" + JSON.stringify({
   status: response.status,
   finalUrl: response.url,
-  contentType: response.headers.get("content-type"),
-  htmlLength: html.length,
-  markers: {
-    fleamarketArticles: html.includes("fleamarketArticles"),
-    remixContext: html.includes("__remixContext"),
-    loaderData: html.includes("loaderData"),
-    nextData: html.includes("__NEXT_DATA__"),
-    ldJson: /application\/ld\+json/i.test(html),
-    dataRoute: html.includes("routes/kr.buy-sell._index"),
-    dataQuery: html.includes("_data="),
-  },
-  snippets: {
-    fleamarketArticles: around("fleamarketArticles"),
-    remixContext: around("__remixContext"),
-    loaderData: around("loaderData"),
-    buySellRoute: around("routes/kr.buy-sell"),
-  },
-  scripts: scripts.filter((script) => script.interesting || script.type === "application/ld+json").slice(0, 12),
-  buySellHrefs: hrefs,
-  endpointHints: fetchLike,
+  loaderDataKeys: Object.keys(loaderData),
+  buySellRouteSummaries: Object.fromEntries(
+    Object.entries(loaderData)
+      .filter(([key]) => key.includes("buy-sell"))
+      .map(([key, value]) => [key, {
+        type: Array.isArray(value) ? "array" : typeof value,
+        keys: value && typeof value === "object" && !Array.isArray(value)
+          ? Object.keys(value)
+          : [],
+      }]),
+  ),
+  arrays: arrays.slice(0, 80),
+  listingLike: listingLike.slice(0, 12),
 }));
