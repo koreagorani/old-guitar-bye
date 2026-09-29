@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   extractDaangnExternalListingId,
+  inspectDaangnSearchHtml,
   normalizeDaangnArticle,
   parseDaangnSearchHtml,
   toListingRecord,
@@ -130,4 +131,16 @@ test("live Remix parser preserves free, missing price, missing location, and sol
     items.some(({ externalListingId }) => externalListingId === "broken005"),
     false,
   );
+});
+
+
+test("inspects the live Remix article container separately from empty search data", () => {
+  const inspection = inspectDaangnSearchHtml(liveFixture);
+  assert.deepEqual(inspection, {
+    remixContextFound: true,
+    routeKey: "routes/kr.search.buy-sell._index",
+    articleContainerFound: true,
+    articleCount: 6,
+    productAdsCount: 1,
+  });
 });

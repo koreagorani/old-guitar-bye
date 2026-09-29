@@ -7,11 +7,16 @@ import test from "node:test";
 import { applyMigrations, openDatabase } from "../../scripts/migrate.js";
 import {
   collectDaangnListingCandidates,
+  DaangnSuppressedResponseError,
   persistDaangnListingCandidates,
 } from "../../src/integrations/daangn/daangn-collector.js";
 
 const fixture = readFileSync(
   new URL("../fixtures/daangn-live-remix-search.html", import.meta.url),
+  "utf8",
+);
+const suppressedFixture = readFileSync(
+  new URL("../fixtures/daangn-suppressed-search.html", import.meta.url),
   "utf8",
 );
 
@@ -112,3 +117,23 @@ test("repeated collection upserts the same external listing instead of duplicati
     "2026-09-29T11:00:00.000Z",
   );
 }));
+
+
+test("does not mistake a live HTTP 200 suppression response for zero listings", async () => {
+  const client = {
+    async search() {
+      return {
+        html: suppressedFixture,
+        sourceUrl: "https://www.daangn.com/kr/search/buy-sell/?q=test",
+      };
+    },
+  };
+
+  await assert.rejects(
+    collectDaangnListingCandidates({
+      client,
+      keywords: ["통기타"],
+    }),
+    (error) => error instanceof DaangnSuppressedResponseError,
+  );
+});

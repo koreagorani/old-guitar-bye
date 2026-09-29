@@ -9,6 +9,7 @@ import {
 } from "../src/integrations/daangn/daangn-client.js";
 import {
   collectDaangnListingCandidates,
+  DaangnSuppressedResponseError,
   persistDaangnListingCandidates,
 } from "../src/integrations/daangn/daangn-collector.js";
 
@@ -66,11 +67,13 @@ try {
 } catch (error) {
   const result = {
     success: false,
-    blocked: error instanceof DaangnAccessError,
+    blocked: error instanceof DaangnAccessError
+      || error instanceof DaangnSuppressedResponseError,
+    suppressed: error instanceof DaangnSuppressedResponseError,
     name: error?.name ?? "Error",
     message: error?.message ?? String(error),
     status: error?.status ?? null,
-    url: error?.url ?? null,
+    url: error?.url ?? error?.sourceUrl ?? null,
   };
   console.log("DAANGN_SMOKE_RESULT=" + JSON.stringify(result));
   process.exitCode = 2;

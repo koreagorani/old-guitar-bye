@@ -1,8 +1,17 @@
 import { saveOrUpdateListing } from "../../repositories/listing-repository.js";
 import {
+  inspectDaangnSearchHtml,
   parseDaangnSearchHtml,
   toListingRecord,
 } from "./daangn-parser.js";
+
+export class DaangnSuppressedResponseError extends Error {
+  constructor(message, { sourceUrl = null } = {}) {
+    super(message);
+    this.name = "DaangnSuppressedResponseError";
+    this.sourceUrl = sourceUrl;
+  }
+}
 
 function assertKeywords(keywords) {
   if (!Array.isArray(keywords) || keywords.length === 0
@@ -52,6 +61,16 @@ export async function collectDaangnListingCandidates({
       sourceUrl: result.sourceUrl,
       region: resolvedRegion,
     });
+    const inspection = inspectDaangnSearchHtml(result.html);
+    if (inspection.articleContainerFound
+      && inspection.articleCount === 0
+      && inspection.productAdsCount === 0) {
+      throw new DaangnSuppressedResponseError(
+        "Daangn returned an empty article list and empty ad slots; response appears suppressed",
+        { sourceUrl: result.sourceUrl },
+      );
+    }
+
     const candidates = parseDaangnSearchHtml(result.html, {
       keyword,
       discoveredAt,

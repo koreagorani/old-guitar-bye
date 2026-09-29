@@ -42,12 +42,11 @@ function extractBalancedJson(source, marker, openCharacter) {
   return null;
 }
 
-function remixLoaderArticles(html) {
+function remixLoaderData(html) {
   const markers = [
     "window.__remixContext =",
     "window.__remixContext=",
   ];
-  let context = null;
 
   for (const marker of markers) {
     const json = extractBalancedJson(html, marker, "{");
@@ -55,15 +54,21 @@ function remixLoaderArticles(html) {
       continue;
     }
     try {
-      context = JSON.parse(json);
-      break;
+      const context = JSON.parse(json);
+      const loaderData = context?.state?.loaderData;
+      if (loaderData && typeof loaderData === "object") {
+        return loaderData;
+      }
     } catch {
       continue;
     }
   }
+  return null;
+}
 
-  const loaderData = context?.state?.loaderData;
-  if (!loaderData || typeof loaderData !== "object") {
+function remixLoaderArticles(html) {
+  const loaderData = remixLoaderData(html);
+  if (!loaderData) {
     return [];
   }
 
@@ -294,5 +299,58 @@ export function toListingRecord(candidate, { lastSeenAt } = {}) {
       lastSeenAt: lastSeenAt ?? candidate.discoveredAt,
     },
     missing: [],
+  };
+}
+
+
+export function inspectDaangnSearchHtml(html) {
+  if (typeof html !== "string") {
+    throw new TypeError("html must be a string");
+  }
+
+  const loaderData = remixLoaderData(html);
+  if (!loaderData) {
+    return {
+      remixContextFound: false,
+      routeKey: null,
+      articleContainerFound: false,
+      articleCount: null,
+      productAdsCount: null,
+    };
+  }
+
+  for (const [routeKey, routeValue] of Object.entries(loaderData)) {
+    if (!routeKey.includes("buy-sell")
+      || routeValue === null
+      || typeof routeValue !== "object") {
+      continue;
+    }
+
+    const currentArticles = routeValue.buySellArticles;
+    const legacyArticles = routeValue.allPage?.fleamarketArticles;
+    const articles = Array.isArray(currentArticles)
+      ? currentArticles
+      : Array.isArray(legacyArticles)
+        ? legacyArticles
+        : null;
+    const productAds = Array.isArray(routeValue.productAds)
+      ? routeValue.productAds
+      : null;
+
+    return {
+      remixContextFound: true,
+      routeKey,
+      articleContainerFound: articles !== null,
+      articleCount: articles?.length ?? null,
+      productAdsCount: productAds?.length ?? null,
+    };
+  }
+
+  return {
+    remixContextFound: true,
+    routeKey: null,
+    articleContainerFound: false,
+    articleCount: null,
+    productAdsCount: null,
   };
 }
