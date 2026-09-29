@@ -12,7 +12,8 @@ import {
   persistDaangnListingCandidates,
 } from "../src/integrations/daangn/daangn-collector.js";
 
-const keywords = ["기타", "통기타", "어쿠스틱 기타"];
+const keywords = ["통기타"];
+const smokeRegion = "역삼동";
 const directory = mkdtempSync(join(tmpdir(), "daangn-live-smoke-"));
 const databasePath = join(directory, "smoke.sqlite");
 const database = openDatabase(databasePath);
@@ -22,6 +23,7 @@ try {
   const collected = await collectDaangnListingCandidates({
     client: createDaangnClient(),
     keywords,
+    region: smokeRegion,
     resultsPerKeyword: 5,
   });
   const persisted = persistDaangnListingCandidates(
@@ -50,6 +52,7 @@ try {
     success: true,
     parserShape: "remix-loaderData-buySellArticles",
     keywords,
+    region: collected.resolvedRegion,
     requests: collected.sources.length,
     candidateCount: collected.candidates.length,
     uniqueExternalIdCount: new Set(
