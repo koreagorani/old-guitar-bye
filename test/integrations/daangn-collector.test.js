@@ -15,12 +15,12 @@ const fixture = readFileSync(
   "utf8",
 );
 
-function withDatabase(callback) {
+async function withDatabase(callback) {
   const directory = mkdtempSync(join(tmpdir(), "daangn-collector-"));
   const database = openDatabase(join(directory, "test.sqlite"));
   try {
     applyMigrations(database);
-    return callback(database);
+    return await callback(database);
   } finally {
     database.close();
     rmSync(directory, { recursive: true, force: true });

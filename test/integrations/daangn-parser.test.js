@@ -26,7 +26,7 @@ test("parses a normal Daangn listing into a normalized candidate", () => {
     externalListingId: "g110abc123",
     title: "고퍼우드 G110 통기타",
     priceKrw: 70000,
-    url: "https://www.daangn.com/kr/buy-sell/고퍼우드-g110-g110abc123/",
+    url: "https://www.daangn.com/kr/buy-sell/%EA%B3%A0%ED%8D%BC%EC%9A%B0%EB%93%9C-g110-g110abc123/",
     locationText: "연수동",
     sellerName: "기타좋아",
     postedAt: "2026-09-29T08:00:00Z",
