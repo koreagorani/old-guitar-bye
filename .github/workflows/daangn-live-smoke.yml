@@ -1,0 +1,23 @@
+name: Daangn live smoke
+
+on:
+  push:
+    paths:
+      - ".github/workflows/daangn-live-smoke.yml"
+      - "scripts/smoke-daangn.js"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run one-shot Daangn smoke test
+        run: node scripts/smoke-daangn.js
