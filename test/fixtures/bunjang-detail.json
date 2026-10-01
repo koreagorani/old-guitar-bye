@@ -1,0 +1,18 @@
+{
+  "data": {
+    "product": {
+      "pid": 300001,
+      "name": "야마하 F310 통기타",
+      "price": 85000,
+      "description": "입문용으로 사용한 통기타입니다.",
+      "saleStatus": "SELLING",
+      "condition": "USED",
+      "geo": {
+        "address": "서울특별시 강남구 역삼동"
+      }
+    },
+    "shop": {
+      "name": "기타상점"
+    }
+  }
+}

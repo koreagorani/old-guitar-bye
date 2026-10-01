@@ -10,6 +10,7 @@
     "bot": "node src/telegram/bot.js",
     "db:migrate": "node scripts/migrate.js",
     "test": "node --test",
-    "collect:daangn": "node scripts/collect-daangn.js"
+    "collect:daangn": "node scripts/collect-daangn.js",
+    "collect:bunjang": "node scripts/collect-bunjang.js"
   }
 }

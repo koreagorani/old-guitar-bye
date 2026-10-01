@@ -1,0 +1,22 @@
+name: Bunjang live smoke
+
+on:
+  push:
+    paths:
+      - ".github/workflows/bunjang-live-smoke.yml"
+      - "scripts/smoke-bunjang.js"
+      - "src/integrations/bunjang/**"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run one-shot Bunjang smoke test
+        run: node scripts/smoke-bunjang.js
