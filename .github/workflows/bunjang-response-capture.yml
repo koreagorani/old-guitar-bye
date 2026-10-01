@@ -1,0 +1,21 @@
+name: Bunjang response capture
+
+on:
+  push:
+    paths:
+      - ".github/workflows/bunjang-response-capture.yml"
+      - "scripts/capture-bunjang-response.js"
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Capture one live Bunjang search response
+        run: node scripts/capture-bunjang-response.js
