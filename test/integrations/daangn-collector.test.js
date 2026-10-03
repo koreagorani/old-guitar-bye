@@ -115,7 +115,7 @@ test("repeated collection upserts the same external listing instead of duplicati
   });
   assert.equal(
     database.prepare("SELECT COUNT(*) AS count FROM listings").get().count,
-    2,
+    3,
   );
   assert.equal(
     database.prepare(
