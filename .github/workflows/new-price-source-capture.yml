@@ -1,0 +1,19 @@
+name: New price source capture
+
+on:
+  push:
+    paths:
+      - ".github/workflows/new-price-source-capture.yml"
+      - "scripts/capture-new-price-sources.js"
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Capture low-frequency new price source HTML
+        run: node scripts/capture-new-price-sources.js
