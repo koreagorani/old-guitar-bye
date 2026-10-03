@@ -73,7 +73,7 @@ test("collects configured keywords sequentially and deduplicates external ids", 
   );
 });
 
-test("persists only candidates compatible with existing ListingRepository", async () => withDatabase(async (database) => {
+test("persists null-location candidates and skips only missing required fields", async () => withDatabase(async (database) => {
   const result = await collectDaangnListingCandidates({
     client: fakeClient(),
     keywords: ["통기타"],
@@ -85,11 +85,18 @@ test("persists only candidates compatible with existing ListingRepository", asyn
     { lastSeenAt: result.discoveredAt },
   );
 
-  assert.equal(persisted.saved.length, 2);
-  assert.equal(persisted.skipped.length, 2);
+  assert.equal(persisted.saved.length, 3);
+  assert.equal(persisted.skipped.length, 1);
+  assert.deepEqual(persisted.skipped[0].missing, ["priceKrw"]);
   assert.equal(
     database.prepare("SELECT COUNT(*) AS count FROM listings").get().count,
-    2,
+    3,
+  );
+  assert.equal(
+    database.prepare(
+      "SELECT seller_location_text AS sellerLocationText FROM listings WHERE external_listing_id = ?",
+    ).get("noloc004").sellerLocationText,
+    null,
   );
   assert.equal(persisted.saved[0].marketplace, "DAANGN");
 }));

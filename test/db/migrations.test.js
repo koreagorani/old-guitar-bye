@@ -69,6 +69,7 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
         "001_initial.sql",
         "002_add_sale_listing_external_id.sql",
         "003_add_sale_listing_to_sales.sql",
+        "004_make_listing_location_nullable.sql",
       ]);
       assert.deepEqual(applyMigrations(database), []);
     });
@@ -87,6 +88,13 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
       assert.ok(foreignKeys.some(({ from, table }) => (
         from === "sale_listing_id" && table === "sale_listings"
       )));
+    });
+
+    await t.test("makes listing seller location nullable", () => {
+      const locationColumn = database.prepare(
+        "PRAGMA table_info(listings)",
+      ).all().find(({ name }) => name === "seller_location_text");
+      assert.equal(locationColumn.notnull, 0);
     });
 
     await t.test("creates every table", () => {

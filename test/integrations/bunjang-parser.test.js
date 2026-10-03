@@ -49,7 +49,8 @@ test("keeps missing price and location as null for the persistence boundary", ()
   assert.equal(noPrice.priceKrw, null);
   assert.equal(noLocation.locationText, null);
   assert.deepEqual(toListingRecord(noPrice).missing, ["priceKrw"]);
-  assert.deepEqual(toListingRecord(noLocation).missing, ["locationText"]);
+  assert.deepEqual(toListingRecord(noLocation).missing, []);
+  assert.equal(toListingRecord(noLocation).listing.sellerLocationText, null);
   assert.equal(noLocation.status, "SOLD_OUT");
 });
 

@@ -59,7 +59,8 @@ test("keeps unavailable location and negotiated price as null", () => {
   const noPrice = items.find(({ externalListingId }) => externalListingId === "noprice77");
   assert.equal(noLocation.locationText, null);
   assert.equal(noPrice.priceKrw, null);
-  assert.deepEqual(toListingRecord(noLocation).missing, ["locationText"]);
+  assert.deepEqual(toListingRecord(noLocation).missing, []);
+  assert.equal(toListingRecord(noLocation).listing.sellerLocationText, null);
   assert.deepEqual(toListingRecord(noPrice).missing, ["priceKrw"]);
 });
 

@@ -127,3 +127,41 @@ test("returns null when a listing does not exist", () => withDatabase((database)
   assert.equal(findListingById(database, 999), null);
   assert.equal(findListingByExternalId(database, "daangn", "missing"), null);
 }));
+
+
+test("stores a listing with null seller location", () => withDatabase((database) => {
+  const saved = saveOrUpdateListing(database, createListing({
+    sellerLocationText: null,
+  }));
+  assert.equal(saved.sellerLocationText, null);
+}));
+
+for (const sellerLocationText of ["", "   "]) {
+  test(`rejects invalid seller location ${JSON.stringify(sellerLocationText)}`, () =>
+    withDatabase((database) => {
+      assert.throws(
+        () => saveOrUpdateListing(database, createListing({ sellerLocationText })),
+        TypeError,
+      );
+    }));
+}
+
+test("updates seller location from string to null", () => withDatabase((database) => {
+  saveOrUpdateListing(database, createListing());
+  const updated = saveOrUpdateListing(database, createListing({
+    sellerLocationText: null,
+    lastSeenAt: "2026-09-13T00:00:00Z",
+  }));
+  assert.equal(updated.sellerLocationText, null);
+}));
+
+test("updates seller location from null to a non-empty string", () => withDatabase((database) => {
+  saveOrUpdateListing(database, createListing({
+    sellerLocationText: null,
+  }));
+  const updated = saveOrUpdateListing(database, createListing({
+    sellerLocationText: "Busan",
+    lastSeenAt: "2026-09-13T00:00:00Z",
+  }));
+  assert.equal(updated.sellerLocationText, "Busan");
+}));

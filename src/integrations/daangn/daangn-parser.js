@@ -275,10 +275,6 @@ export function toListingRecord(candidate, { lastSeenAt } = {}) {
   if (!Number.isSafeInteger(candidate.priceKrw) || candidate.priceKrw < 0) {
     missing.push("priceKrw");
   }
-  if (typeof candidate.locationText !== "string"
-    || candidate.locationText.trim() === "") {
-    missing.push("locationText");
-  }
   if (typeof candidate.discoveredAt !== "string"
     || candidate.discoveredAt.trim() === "") {
     missing.push("discoveredAt");

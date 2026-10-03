@@ -84,7 +84,7 @@ test("optionally enriches candidates using the detail endpoint", async () => {
   assert.equal(result.candidates[0].sellerName, "기타상점");
 });
 
-test("persists compatible listings and skips incomplete candidates", async () =>
+test("persists null-location listings and skips only candidates missing required fields", async () =>
   withDatabase(async (database) => {
     const result = await collectBunjangListingCandidates({
       client:fakeClient(),
@@ -97,11 +97,18 @@ test("persists compatible listings and skips incomplete candidates", async () =>
       result.candidates,
       { lastSeenAt:result.discoveredAt },
     );
-    assert.equal(persisted.saved.length, 2);
-    assert.equal(persisted.skipped.length, 2);
+    assert.equal(persisted.saved.length, 3);
+    assert.equal(persisted.skipped.length, 1);
+    assert.deepEqual(persisted.skipped[0].missing, ["priceKrw"]);
     assert.equal(
       database.prepare("SELECT COUNT(*) AS count FROM listings").get().count,
-      2,
+      3,
+    );
+    assert.equal(
+      database.prepare(
+        "SELECT seller_location_text AS sellerLocationText FROM listings WHERE external_listing_id = ?",
+      ).get("300004").sellerLocationText,
+      null,
     );
     assert.ok(persisted.saved.every(({ marketplace }) => marketplace === "BUNJANG"));
   }));

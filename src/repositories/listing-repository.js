@@ -17,6 +17,13 @@ function assertNonEmptyString(value, fieldName) {
   }
 }
 
+function assertNullableNonEmptyString(value, fieldName) {
+  if (value === null) {
+    return;
+  }
+  assertNonEmptyString(value, fieldName);
+}
+
 function validateListing(listing) {
   if (listing === null || typeof listing !== "object" || Array.isArray(listing)) {
     throw new TypeError("listing must be an object");
@@ -27,12 +34,16 @@ function validateListing(listing) {
     "externalListingId",
     "url",
     "title",
-    "sellerLocationText",
     "discoveredAt",
     "lastSeenAt",
   ]) {
     assertNonEmptyString(listing[fieldName], fieldName);
   }
+
+  assertNullableNonEmptyString(
+    listing.sellerLocationText,
+    "sellerLocationText",
+  );
 
   if (typeof listing.description !== "string") {
     throw new TypeError("listing.description must be a string");
