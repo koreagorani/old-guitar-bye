@@ -1,5 +1,7 @@
 import { createAcousticMartSource } from "../src/integrations/new-price/acousticmart-source.js";
 import { createMovlandSource } from "../src/integrations/new-price/movland-source.js";
+import { createBuzzbeeSource } from "../src/integrations/new-price/buzzbee-source.js";
+import { createGopherwoodSource } from "../src/integrations/new-price/gopherwood-source.js";
 import { createReferenceNewPriceResolver } from "../src/integrations/new-price/reference-price-resolver.js";
 import {
   calculateUsedToNewRatio,
@@ -27,6 +29,8 @@ const resolver = createReferenceNewPriceResolver({
   sources: [
     createAcousticMartSource(),
     createMovlandSource(),
+    createBuzzbeeSource(),
+    createGopherwoodSource(),
   ],
 });
 
@@ -117,6 +121,39 @@ const recentObservedTargets = [
   },
 ];
 
+const coverageTargets = [
+  { brand: "CORT", model: "EARTH100" },
+  { brand: "GOPHERWOOD", model: "G110" },
+  { brand: "HEX", model: "F100" },
+  { brand: "DEXTER", model: "AD100S" },
+];
+
+const coverageResults = [];
+for (const target of coverageTargets) {
+  const reference = await resolver.resolve(target);
+  coverageResults.push({
+    ...target,
+    referenceNewPriceKrw: reference.referenceNewPriceKrw,
+    confidence: reference.confidence,
+    sourceCount: reference.sourceCount,
+    usableSources: reference.sources.map((source) => ({
+      source: source.source,
+      productTitle: source.productTitle,
+      sellingPrice: source.priceKrw,
+      usable: source.rejectionReasons.length === 0,
+      url: source.url,
+    })),
+    rejectedSources: reference.rejectedCandidates.slice(0, 8).map((source) => ({
+      source: source.source,
+      productTitle: source.productTitle,
+      sellingPrice: source.priceKrw,
+      usable: false,
+      rejectionReasons: source.rejectionReasons,
+      url: source.url,
+    })),
+  });
+}
+
 const recentKnownResults = [];
 for (const target of recentObservedTargets) {
   const reference = await resolver.resolve({
@@ -152,6 +189,7 @@ console.log("REFERENCE_PRICE_SMOKE=" + JSON.stringify({
   ),
   results,
   recentKnownResults,
+  coverageResults,
   recentDecisionCounts: Object.fromEntries(
     ["TRACK", "IGNORE", "UNRESOLVED"].map((decision) => [
       decision,
