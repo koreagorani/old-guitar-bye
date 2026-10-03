@@ -8,13 +8,17 @@ import {
 const SOURCE = "MOVLAND_SCHOOLMUSIC";
 const BASE_URL = "https://www.movland.co.kr";
 
-function productTitleMatches(html) {
-  return [...html.matchAll(/<font[^>]*color=["']?#393939["']?[^>]*>([\s\S]*?)<\/font>/gi)];
+function productCardSegments(html) {
+  const marker = /<td\s+width=["']?25%["']?\s+valign=["']?top["']?[^>]*>/gi;
+  const matches = [...html.matchAll(marker)];
+  return matches.map((match, index) => {
+    const nextIndex = matches[index + 1]?.index ?? html.length;
+    return html.slice(match.index, nextIndex);
+  });
 }
 
-function findProductId(before) {
-  const ids = [...before.matchAll(/Good_no=(\d+)/gi)];
-  return ids.at(-1)?.[1] ?? null;
+function findProductId(block) {
+  return /Good_no=(\d+)/i.exec(block)?.[1] ?? null;
 }
 
 function parseSalePrice(block) {
@@ -29,20 +33,17 @@ export function parseMovlandSearchHtml(html, { observedAt } = {}) {
     throw new TypeError("html must be a string");
   }
 
-  const matches = productTitleMatches(html);
   const products = [];
   const seen = new Set();
 
-  for (let index = 0; index < matches.length; index += 1) {
-    const match = matches[index];
-    const before = html.slice(Math.max(0, match.index - 5000), match.index);
-    const productId = findProductId(before);
+  for (const block of productCardSegments(html)) {
+    const productId = findProductId(block);
     if (!productId || seen.has(productId)) continue;
     seen.add(productId);
 
-    const nextIndex = matches[index + 1]?.index ?? Math.min(html.length, match.index + 7000);
-    const block = html.slice(match.index, nextIndex);
-    const productTitle = textFromHtml(match[1]);
+    const titleMatch = /<font[^>]*color=["']?#393939["']?[^>]*>([\s\S]*?)<\/font>/i.exec(block);
+    if (!titleMatch) continue;
+    const productTitle = textFromHtml(titleMatch[1]);
     const priceKrw = parseSalePrice(block);
     const url = absoluteUrl(
       BASE_URL,
