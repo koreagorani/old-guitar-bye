@@ -127,3 +127,15 @@ export function findListingByExternalId(
     WHERE marketplace = ? AND external_listing_id = ?
   `).get(marketplace, externalListingId));
 }
+
+
+export function listListingsByMarketplace(database, marketplace) {
+  assertNonEmptyString(marketplace, "marketplace");
+
+  return database.prepare(`
+    SELECT ${LISTING_COLUMNS}
+    FROM listings
+    WHERE marketplace = ?
+    ORDER BY last_seen_at DESC, id DESC
+  `).all(marketplace).map((row) => ({ ...row }));
+}
