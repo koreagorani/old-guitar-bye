@@ -1,0 +1,21 @@
+name: Reference new price live smoke
+
+on:
+  push:
+    paths:
+      - ".github/workflows/reference-price-live-smoke.yml"
+      - "scripts/smoke-reference-prices.js"
+      - "src/domain/listing/reference-new-price.js"
+      - "src/integrations/new-price/**"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve live reference new prices once
+        run: node scripts/smoke-reference-prices.js
