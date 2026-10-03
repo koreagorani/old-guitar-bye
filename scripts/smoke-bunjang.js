@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { applyMigrations, openDatabase } from "./migrate.js";
-import { classifyListingRelevance } from "../src/domain/listing/listing-relevance.js";
+import { normalizeGuitarIdentity } from "../src/domain/listing/guitar-identity.js";\nimport {\n  classifyListingRelevance,\n  LISTING_RELEVANCE,\n} from "../src/domain/listing/listing-relevance.js";
 import {
   BunjangAccessError,
   createBunjangClient,
@@ -53,21 +53,32 @@ try {
         classifications.filter(({ relevance }) => relevance === value).length,
       ]),
     ),
-    samples: collected.candidates.slice(0, 5).map((candidate) => ({
-      title: candidate.title,
-      priceKrw: candidate.priceKrw,
-      locationText: candidate.locationText,
-      url: candidate.url,
-      externalListingId: candidate.externalListingId,
-      status: candidate.status,
-      postedAt: candidate.postedAt,
-      sellerName: candidate.sellerName,
-      dbSaved: savedIds.has(candidate.externalListingId),
-      classification: classifyListingRelevance({
+    samples: collected.candidates.slice(0, 5).map((candidate) => {
+      const classification = classifyListingRelevance({
         title: candidate.title,
         description: candidate.description,
-      }),
-    })),
+      });
+      const identity = classification.relevance === LISTING_RELEVANCE.IRRELEVANT
+        ? null
+        : normalizeGuitarIdentity({
+          title: candidate.title,
+          description: candidate.description,
+          guitarType: classification.guitarType,
+        });
+      return {
+        title: candidate.title,
+        priceKrw: candidate.priceKrw,
+        locationText: candidate.locationText,
+        url: candidate.url,
+        externalListingId: candidate.externalListingId,
+        status: candidate.status,
+        postedAt: candidate.postedAt,
+        sellerName: candidate.sellerName,
+        dbSaved: savedIds.has(candidate.externalListingId),
+        classification,
+        identity,
+      };
+    }),
   }));
 } catch (error) {
   console.log("BUNJANG_SMOKE_RESULT=" + JSON.stringify({
