@@ -90,6 +90,56 @@ for (const candidate of collected.candidates) {
   });
 }
 
+const recentObservedTargets = [
+  {
+    title: "크래프터 DX-25 RS PRIMR 탑솔리드 통기타",
+    brand: "CRAFTER",
+    model: "DX25",
+    askingPriceKrw: 200000,
+  },
+  {
+    title: "크래프터 GCL-80 탑솔리드 통기타",
+    brand: "CRAFTER",
+    model: "GCL80",
+    askingPriceKrw: 150000,
+  },
+  {
+    title: "크래프터통기타 OMEGA CSP Plus",
+    brand: "CRAFTER",
+    model: "OMEGA CSP PLUS",
+    askingPriceKrw: 120000,
+  },
+  {
+    title: "세고비아 클래식 기타 판매합니다.",
+    brand: "SEGOVIA",
+    model: "VC01",
+    askingPriceKrw: 30000,
+  },
+];
+
+const recentKnownResults = [];
+for (const target of recentObservedTargets) {
+  const reference = await resolver.resolve({
+    brand: target.brand,
+    model: target.model,
+  });
+  const ratio = calculateUsedToNewRatio({
+    askingPriceKrw: target.askingPriceKrw,
+    referenceNewPriceKrw: reference.referenceNewPriceKrw,
+    referenceConfidence: reference.confidence,
+  });
+  recentKnownResults.push({
+    ...target,
+    referenceNewPriceKrw: reference.referenceNewPriceKrw,
+    ratioPct: ratio.percentage,
+    decision: ratio.decision,
+    referenceConfidence: reference.confidence,
+    sourceUrls: [...new Set(reference.sources.map(({ url }) => url))],
+    sourcePrices: reference.sourcePrices,
+    sourceErrors: reference.sourceErrors,
+  });
+}
+
 console.log("REFERENCE_PRICE_SMOKE=" + JSON.stringify({
   success: true,
   candidateCount: collected.candidates.length,
@@ -101,4 +151,11 @@ console.log("REFERENCE_PRICE_SMOKE=" + JSON.stringify({
     ]),
   ),
   results,
+  recentKnownResults,
+  recentDecisionCounts: Object.fromEntries(
+    ["TRACK", "IGNORE", "UNRESOLVED"].map((decision) => [
+      decision,
+      recentKnownResults.filter((result) => result.decision === decision).length,
+    ]),
+  ),
 }));
