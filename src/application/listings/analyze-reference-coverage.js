@@ -90,12 +90,12 @@ export async function analyzeReferenceCoverage({
       description: listing.description,
       guitarType: relevance.guitarType,
     });
-    if (!identity.brand || !identity.model) {
-      identityIncompleteCount += 1;
-      continue;
-    }
     if (identity.confidence === IDENTITY_CONFIDENCE.LOW) {
       lowConfidenceCount += 1;
+      continue;
+    }
+    if (!identity.brand || !identity.model) {
+      identityIncompleteCount += 1;
       continue;
     }
 

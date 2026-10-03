@@ -58,16 +58,16 @@ test("excludes LOW confidence identities separately", async () => {
     listings: [
       listing({
         title: "야마하 통기타",
-        description: "모델명 F310",
+        description: "",
       }),
       listing(),
     ],
     resolver,
     now: () => NOW,
   });
-  assert.equal(result.summary.lowConfidenceListings, 0);
+  assert.equal(result.summary.lowConfidenceListings, 1);
   assert.equal(result.summary.identityIncompleteListings, 0);
-  assert.equal(result.summary.totalIdentifiedListings, 2);
+  assert.equal(result.summary.totalIdentifiedListings, 1);
 });
 
 test("aggregates identical brand and model and resolves once", async () => {
