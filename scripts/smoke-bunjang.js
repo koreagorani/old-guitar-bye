@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { applyMigrations, openDatabase } from "./migrate.js";
-import { normalizeGuitarIdentity } from "../src/domain/listing/guitar-identity.js";\nimport {\n  classifyListingRelevance,\n  LISTING_RELEVANCE,\n} from "../src/domain/listing/listing-relevance.js";
+import { normalizeGuitarIdentity } from "../src/domain/listing/guitar-identity.js";
+import {
+  classifyListingRelevance,
+  LISTING_RELEVANCE,
+} from "../src/domain/listing/listing-relevance.js";
 import {
   BunjangAccessError,
   createBunjangClient,

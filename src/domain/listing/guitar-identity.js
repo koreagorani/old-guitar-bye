@@ -257,8 +257,7 @@ function modelWasCanonicalized(raw, canonical) {
   if (!raw) {
     return false;
   }
-  return raw.toUpperCase().replace(/[\s-]/g, "")
-    !== canonical.toUpperCase().replace(/\s/g, "");
+  return raw.toUpperCase() !== canonical.toUpperCase();
 }
 
 function resolveModel(titleModel, descriptionModel, reasons) {
