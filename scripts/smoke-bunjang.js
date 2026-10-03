@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { applyMigrations, openDatabase } from "./migrate.js";
+import { classifyListingRelevance } from "../src/domain/listing/listing-relevance.js";
 import {
   BunjangAccessError,
   createBunjangClient,
@@ -51,6 +52,10 @@ try {
       postedAt: candidate.postedAt,
       sellerName: candidate.sellerName,
       dbSaved: savedIds.has(candidate.externalListingId),
+      classification: classifyListingRelevance({
+        title: candidate.title,
+        description: candidate.description,
+      }),
     })),
   }));
 } catch (error) {
