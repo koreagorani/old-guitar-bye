@@ -6,6 +6,7 @@ on:
       - ".github/workflows/bunjang-live-smoke.yml"
       - "scripts/smoke-bunjang.js"
       - "src/integrations/bunjang/**"
+      - "src/domain/listing/**"
 
 jobs:
   smoke:
