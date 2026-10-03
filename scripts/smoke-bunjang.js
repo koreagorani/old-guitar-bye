@@ -33,6 +33,11 @@ try {
     persisted.saved.map(({ externalListingId }) => externalListingId),
   );
 
+  const classifications = collected.candidates.map((candidate) =>
+    classifyListingRelevance({
+      title: candidate.title,
+      description: candidate.description,
+    }));
   console.log("BUNJANG_SMOKE_RESULT=" + JSON.stringify({
     success: true,
     requests: 1 + collected.candidates.length,
@@ -42,6 +47,12 @@ try {
     ).size,
     savedCount: persisted.saved.length,
     skipped: persisted.skipped,
+    relevanceCounts: Object.fromEntries(
+      ["RELEVANT", "IRRELEVANT", "UNCERTAIN"].map((value) => [
+        value,
+        classifications.filter(({ relevance }) => relevance === value).length,
+      ]),
+    ),
     samples: collected.candidates.slice(0, 5).map((candidate) => ({
       title: candidate.title,
       priceKrw: candidate.priceKrw,
