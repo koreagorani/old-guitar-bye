@@ -20,10 +20,12 @@ export function createReferenceNewPriceResolver({
 
   const cache = new Map();
 
-  async function searchSource(source, brand, observedAt) {
-    const key = `${source.id}:${brand}`;
+  async function searchSource(source, brand, model, observedAt) {
+    const key = source.cacheByModel
+      ? `${source.id}:${brand}:${model}`
+      : `${source.id}:${brand}`;
     if (!cache.has(key)) {
-      cache.set(key, source.search({ brand, observedAt }));
+      cache.set(key, source.search({ brand, model, observedAt }));
     }
     return cache.get(key);
   }
@@ -40,7 +42,12 @@ export function createReferenceNewPriceResolver({
 
       for (const source of sources) {
         try {
-          const result = await searchSource(source, brand, observedAt);
+          const result = await searchSource(
+            source,
+            brand,
+            model,
+            observedAt,
+          );
           for (const product of result.products) {
             evaluated.push(evaluateReferencePriceCandidate({
               brand,

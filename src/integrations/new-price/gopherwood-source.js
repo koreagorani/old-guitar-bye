@@ -10,7 +10,7 @@ const BASE_URL = "https://www.gopherwood.co.kr";
 
 function productBlocks(html) {
   const markers = [...html.matchAll(
-    /<li[^>]+id=["']anchorBoxId_(\d+)["'][^>]*>/gi,
+    /<div[^>]+id=["']anchorBoxId_(\d+)["'][^>]*>/gi,
   )];
   return markers.map((match, index) => {
     const nextIndex = markers[index + 1]?.index ?? html.length;
@@ -36,7 +36,9 @@ export function parseGopherwoodSearchHtml(html, { observedAt } = {}) {
 
   const products = [];
   for (const block of productBlocks(html)) {
-    const link = /<a[^>]+href=["']([^"']*\/product\/[^"']+)["'][^>]*>[\s\S]*?<span[^>]*>([^<]+)<\/span>/i.exec(block);
+    const nameBlock = /<div[^>]*class=["'][^"']*prd_name[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1];
+    if (!nameBlock) continue;
+    const link = /<a[^>]+href=["']([^"']*\/product\/[^"']+)["'][^>]*>[\s\S]*?<span[^>]*>([^<]+)<\/span>/i.exec(nameBlock);
     if (!link) continue;
 
     const productTitle = textFromHtml(link[2]);
@@ -62,13 +64,14 @@ export function createGopherwoodSource({
 } = {}) {
   return {
     id: SOURCE,
-    async search({ brand, observedAt }) {
+    cacheByModel: true,
+    async search({ brand, model, observedAt }) {
       if (brand !== "GOPHERWOOD") {
         return { products: [], sourceUrl: null };
       }
 
       const url = new URL("/product/search.html", BASE_URL);
-      url.searchParams.set("keyword", "Gopherwood");
+      url.searchParams.set("keyword", model);
       const response = await fetchPublicHtml({
         fetchImpl,
         source: SOURCE,

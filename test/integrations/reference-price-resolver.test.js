@@ -55,3 +55,30 @@ test("resolver caches a source search by brand", async () => {
   await resolver.resolve({ brand: "CRAFTER", model: "GCL80" });
   assert.equal(a.calls, 1);
 });
+
+
+test("model-specific sources cache independently by brand and model", async () => {
+  const observedAt = "2026-10-03T08:00:00Z";
+  let calls = 0;
+  const modelSource = {
+    id: "MODEL_SOURCE",
+    cacheByModel: true,
+    async search({ brand, model }) {
+      calls += 1;
+      return {
+        products: [],
+        sourceUrl: `https://example.com/search?q=${brand}+${model}`,
+      };
+    },
+  };
+  const resolver = createReferenceNewPriceResolver({
+    sources: [modelSource],
+    now: () => new Date(observedAt),
+  });
+
+  await resolver.resolve({ brand: "CRAFTER", model: "DX25" });
+  await resolver.resolve({ brand: "CRAFTER", model: "DX25" });
+  await resolver.resolve({ brand: "CRAFTER", model: "GCL80" });
+
+  assert.equal(calls, 2);
+});

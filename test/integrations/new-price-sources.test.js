@@ -9,6 +9,7 @@ import {
   parseMovlandSearchHtml,
 } from "../../src/integrations/new-price/movland-source.js";
 import {
+  createBuzzbeeSource,
   parseBuzzbeeSearchHtml,
 } from "../../src/integrations/new-price/buzzbee-source.js";
 import {
@@ -98,4 +99,52 @@ test("Gopherwood official source skips unsupported brands without network access
   });
   assert.deepEqual(result, { products: [], sourceUrl: null });
   assert.equal(calls, 0);
+});
+
+
+test("Buzzbee source searches by exact brand and model terms", async () => {
+  const calls = [];
+  const source = createBuzzbeeSource({
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return {
+        ok: true,
+        status: 200,
+        url: String(url),
+        headers: { get: () => "text/html; charset=utf-8" },
+        arrayBuffer: async () => new TextEncoder().encode(buzzbee).buffer,
+      };
+    },
+  });
+  await source.search({
+    brand: "CORT",
+    model: "EARTH100",
+    observedAt: "2026-10-03T08:00:00Z",
+  });
+  assert.equal(
+    new URL(calls[0]).searchParams.get("keyword"),
+    "CORT EARTH100",
+  );
+});
+
+test("Gopherwood official source searches by exact model", async () => {
+  const calls = [];
+  const source = createGopherwoodSource({
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return {
+        ok: true,
+        status: 200,
+        url: String(url),
+        headers: { get: () => "text/html; charset=utf-8" },
+        arrayBuffer: async () => new TextEncoder().encode(gopherwood).buffer,
+      };
+    },
+  });
+  await source.search({
+    brand: "GOPHERWOOD",
+    model: "G110",
+    observedAt: "2026-10-03T08:00:00Z",
+  });
+  assert.equal(new URL(calls[0]).searchParams.get("keyword"), "G110");
 });

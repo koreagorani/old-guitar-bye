@@ -81,9 +81,10 @@ export function createBuzzbeeSource({
 } = {}) {
   return {
     id: SOURCE,
-    async search({ brand, observedAt }) {
+    cacheByModel: true,
+    async search({ brand, model, observedAt }) {
       const url = new URL("/goods/goods_search.php", BASE_URL);
-      url.searchParams.set("keyword", brand);
+      url.searchParams.set("keyword", `${brand} ${model}`);
       const response = await fetchPublicHtml({
         fetchImpl,
         source: SOURCE,
