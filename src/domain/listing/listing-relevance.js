@@ -42,7 +42,7 @@ const ACCESSORY_RULES = Object.freeze([
   },
   {
     reason: "ACCESSORY_ONLY_BAG",
-    pattern: /(?:긱\s*백|gig\s*bag|기타\s*(?:용\s*)?(?:가방|백)\b|guitar\s*bag)/i,
+    pattern: /(?:긱\s*백|gig\s*bag|기타\s*(?:용\s*)?(?:가방|백)|guitar\s*bag)/i,
   },
   {
     reason: "ACCESSORY_ONLY_STRAP",
@@ -50,15 +50,15 @@ const ACCESSORY_RULES = Object.freeze([
   },
   {
     reason: "ACCESSORY_ONLY_STRINGS",
-    pattern: /(?:기타\s*(?:줄|현)\b|통기타\s*(?:줄|현)\b|guitar\s*strings?)/i,
+    pattern: /(?:기타\s*(?:줄|현)|통기타\s*(?:줄|현)|guitar\s*strings?)/i,
   },
   {
     reason: "ACCESSORY_ONLY_PICK",
-    pattern: /(?:기타\s*픽\b|guitar\s*picks?\b|피크\s*(?:세트|묶음|단품))/i,
+    pattern: /(?:기타\s*픽|guitar\s*picks?\b|피크\s*(?:세트|묶음|단품))/i,
   },
   {
     reason: "ACCESSORY_ONLY_CAPO",
-    pattern: /(?:카포\b|capo\b)/i,
+    pattern: /(?:카포|capo\b)/i,
   },
   {
     reason: "ACCESSORY_ONLY_TUNER",
@@ -70,11 +70,11 @@ const ACCESSORY_RULES = Object.freeze([
   },
   {
     reason: "ACCESSORY_ONLY_PICKUP",
-    pattern: /(?:픽업\s*단품|기타\s*픽업\b|guitar\s*pickup\b)/i,
+    pattern: /(?:픽업\s*단품|기타\s*픽업|guitar\s*pickup\b)/i,
   },
   {
     reason: "ACCESSORY_ONLY_PART",
-    pattern: /(?:기타\s*(?:브릿지|브리지|너트|페그|튜닝페그)\b|guitar\s*(?:bridge|nut|peg)s?\b)/i,
+    pattern: /(?:기타\s*(?:브릿지|브리지|너트|페그|튜닝페그)|guitar\s*(?:bridge|nut|peg)s?\b)/i,
   },
   {
     reason: "ACCESSORY_ONLY_AMP",
@@ -86,11 +86,11 @@ const ACCESSORY_RULES = Object.freeze([
   },
   {
     reason: "ACCESSORY_ONLY_SHEET_MUSIC",
-    pattern: /(?:기타\s*(?:악보|교본|교재)\b|guitar\s*(?:sheet\s*music|book))/i,
+    pattern: /(?:기타\s*(?:악보|교본|교재)|guitar\s*(?:sheet\s*music|book))/i,
   },
   {
     reason: "ACCESSORY_ONLY_MERCH",
-    pattern: /(?:기타\s*(?:굿즈|키링|장식|미니어처|피규어)\b|(?:굿즈|키링|피규어).*(?:기타|guitar))/i,
+    pattern: /(?:기타\s*(?:굿즈|키링|장식|미니어처|피규어)|(?:굿즈|키링|피규어).*(?:기타|guitar))/i,
   },
   {
     reason: "GUITAR_SHAPED_ITEM",
