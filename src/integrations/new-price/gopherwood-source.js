@@ -10,7 +10,7 @@ const BASE_URL = "https://www.gopherwood.co.kr";
 
 function productBlocks(html) {
   const markers = [...html.matchAll(
-    /<div[^>]+id=["']anchorBoxId_(\d+)["'][^>]*>/gi,
+    /<(?:div|li)[^>]+id=["']anchorBoxId_(\d+)["'][^>]*>/gi,
   )];
   return markers.map((match, index) => {
     const nextIndex = markers[index + 1]?.index ?? html.length;
@@ -36,7 +36,8 @@ export function parseGopherwoodSearchHtml(html, { observedAt } = {}) {
 
   const products = [];
   for (const block of productBlocks(html)) {
-    const nameBlock = /<div[^>]*class=["'][^"']*prd_name[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1];
+    const nameBlock = /<div[^>]*class=["'][^"']*prd_name[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1]
+      ?? /<strong[^>]*class=["'][^"']*name[^"']*["'][^>]*>([\s\S]*?)<\/strong>/i.exec(block)?.[1];
     if (!nameBlock) continue;
     const link = /<a[^>]+href=["']([^"']*\/product\/[^"']+)["'][^>]*>[\s\S]*?<span[^>]*>([^<]+)<\/span>/i.exec(nameBlock);
     if (!link) continue;
