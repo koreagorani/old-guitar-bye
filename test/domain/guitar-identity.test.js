@@ -90,7 +90,7 @@ test("conflicting title and explicitly labelled description models are not guess
 test("conflicting title and description brands return null brand", () => {
   const result = normalizeGuitarIdentity({
     title: "야마하 F310",
-    description: "콜트 기타라고도 적혀 있습니다.",
+    description: "브랜드: 콜트",
   });
   assert.equal(result.brand, null);
   assert.equal(result.model, "F310");
@@ -258,4 +258,49 @@ test("existing model regressions remain stable", () => {
   for (const [title, model] of cases) {
     assert.equal(normalizeGuitarIdentity({ title }).model, model, title);
   }
+});
+
+
+test("narrative brand mentions in description do not override an explicit title brand", () => {
+  const result = normalizeGuitarIdentity({
+    title: "에피폰 통기타 Epiphone PR-150 NA",
+    description: "Gibson 계열 브랜드로 알려져 있습니다.",
+    guitarType: "ACOUSTIC",
+  });
+  assert.equal(result.brand, "EPIPHONE");
+  assert.equal(result.model, "PR150");
+  assert.equal(result.variant, "NA");
+  assert.equal(result.confidence, "HIGH");
+});
+
+test("additional live-sample brands normalize only when explicitly present", () => {
+  const cases = [
+    ["데임 통기타 DAME Lilies70 Concert", "DAME", "LILIES70"],
+    ["호프너 HAS-D01CERD 어쿠스틱 기타", "HOFNER", "HAS-D01CERD"],
+    ["일렉기타 쉑터 C-6 Pro", "SCHECTER", "C6 PRO"],
+    ["카운티스 D-7 어쿠스틱 기타", "COUNTESS", "D7"],
+    ["Olivia AEQ 41 어쿠스틱 기타", "OLIVIA", "AEQ41"],
+  ];
+  for (const [title, brand, model] of cases) {
+    const result = normalizeGuitarIdentity({ title });
+    assert.equal(result.brand, brand, title);
+    assert.equal(result.model, model, title);
+    assert.equal(result.confidence, "HIGH", title);
+  }
+});
+
+test("Crafter finish code is separated from base model", () => {
+  const result = normalizeGuitarIdentity({
+    title: "크래프터 통기타 CRAFTER HT-100/OP.N",
+  });
+  assert.equal(result.model, "HT100");
+  assert.equal(result.variant, "OP.N");
+  assert.equal(result.confidence, "HIGH");
+});
+
+test("obvious color-like SKU is rejected by generic parser", () => {
+  const result = normalizeGuitarIdentity({
+    title: "Gopherwood Jet Black BLACK500 기타",
+  });
+  assert.notEqual(result.model, "BLACK500");
 });

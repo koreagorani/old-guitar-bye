@@ -14,6 +14,13 @@ export const GUITAR_BRAND_ALIASES = Object.freeze({
   DEXTER: Object.freeze(["DEXTER", "덱스터"]),
   SAMICK: Object.freeze(["SAMICK", "삼익"]),
   SEGOVIA: Object.freeze(["SEGOVIA", "세고비아"]),
+  DAME: Object.freeze(["DAME", "데임"]),
+  HOFNER: Object.freeze(["HOFNER", "HÖFNER", "호프너"]),
+  ORANGEWOOD: Object.freeze(["ORANGEWOOD", "오렌지우드"]),
+  OVATION: Object.freeze(["OVATION", "오베이션"]),
+  SCHECTER: Object.freeze(["SCHECTER", "쉑터", "셰크터"]),
+  COUNTESS: Object.freeze(["COUNTESS", "카운티스"]),
+  OLIVIA: Object.freeze(["OLIVIA", "올리비아"]),
 });
 
 export const GUITAR_BRANDS = Object.freeze(

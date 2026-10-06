@@ -18,6 +18,14 @@ export const GUITAR_MODEL_RULES = Object.freeze({
   ]),
   CRAFTER: Object.freeze([
     {
+      id: "CRAFTER_HT100",
+      pattern: /\bHT\s*[- ]?\s*100(?:\s*[/ -]\s*(OP\.N|OPN|NAT|NS))?\b/i,
+      build: (match) => ({
+        model: "HT100",
+        variant: match[1]?.toUpperCase() ?? null,
+      }),
+    },
+    {
       id: "CRAFTER_SURE_PLUS",
       pattern: /\bSURE\s+PLUS\b/i,
       build: () => ({ model: "SURE PLUS", variant: null }),
@@ -86,6 +94,43 @@ export const GUITAR_MODEL_RULES = Object.freeze({
     },
   ]),
   TAKAMINE: Object.freeze([]),
+  DAME: Object.freeze([
+    {
+      id: "DAME_LILIES70",
+      pattern: /\bLILIES\s*[- ]?\s*70\b/i,
+      build: () => ({ model: "LILIES70", variant: null }),
+    },
+  ]),
+  HOFNER: Object.freeze([
+    {
+      id: "HOFNER_HAS_D01CERD",
+      pattern: /\bHAS\s*[- ]?\s*D\s*[- ]?\s*01\s*CE\s*RD\b/i,
+      build: () => ({ model: "HAS-D01CERD", variant: null }),
+    },
+  ]),
+  SCHECTER: Object.freeze([
+    {
+      id: "SCHECTER_C6_PRO",
+      pattern: /\bC\s*[- ]?\s*6\s+PRO\b/i,
+      build: () => ({ model: "C6 PRO", variant: null }),
+    },
+  ]),
+  COUNTESS: Object.freeze([
+    {
+      id: "COUNTESS_D7",
+      pattern: /\bD\s*[- ]?\s*7\b/i,
+      build: () => ({ model: "D7", variant: null }),
+    },
+  ]),
+  OLIVIA: Object.freeze([
+    {
+      id: "OLIVIA_AEQ41",
+      pattern: /\bAEQ\s*[- ]?\s*41\b/i,
+      build: () => ({ model: "AEQ41", variant: null }),
+    },
+  ]),
+  ORANGEWOOD: Object.freeze([]),
+  OVATION: Object.freeze([]),
 });
 
 export function matchBrandModelRule(brand, text) {

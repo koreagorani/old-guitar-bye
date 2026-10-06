@@ -88,6 +88,41 @@ function detectBrand(text) {
   };
 }
 
+function detectDescriptionBrand(description) {
+  if (description === "") {
+    return null;
+  }
+
+  const contexts = [];
+  const pattern = /(?:브랜드|brand|제조사)\s*(?::|=|은|는)?\s*([^\n,.]{1,40})/gi;
+  for (const match of description.matchAll(pattern)) {
+    contexts.push(match[1]);
+  }
+  if (contexts.length === 0) {
+    return null;
+  }
+
+  const matches = contexts
+    .map((context) => detectBrand(context))
+    .filter(Boolean);
+
+  const brands = [...new Set(matches.flatMap((match) => (
+    match.conflict ? match.brands : [match.brand]
+  )))];
+
+  if (brands.length === 0) {
+    return null;
+  }
+  if (brands.length > 1) {
+    return { conflict: true, brands };
+  }
+  return {
+    conflict: false,
+    brand: brands[0],
+    alias: null,
+  };
+}
+
 function stripBrandAliases(text) {
   let stripped = text;
   for (const aliases of Object.values(GUITAR_BRAND_ALIASES)) {
@@ -97,6 +132,19 @@ function stripBrandAliases(text) {
     }
   }
   return stripped.replace(/\s+/g, " ").trim();
+}
+
+function isLikelyNoiseModel(model) {
+  if (/^(?:19|20)\d{2}$/.test(model)) {
+    return true;
+  }
+  if (/^(?:BLACK|WHITE|BLUE|RED|GREEN|JET|NATURAL|NAT)\d{2,5}$/i.test(model)) {
+    return true;
+  }
+  if (/^\d{5,}$/.test(model)) {
+    return true;
+  }
+  return false;
 }
 
 function canonicalizeModelMatch(match) {
@@ -160,7 +208,7 @@ function detectModel(text, brand = null) {
         continue;
       }
       const canonical = canonicalizeModelMatch(match);
-      if (canonical) {
+      if (canonical && !isLikelyNoiseModel(canonical)) {
         candidates.push({
           model: canonical,
           variant: null,
@@ -374,7 +422,7 @@ export function normalizeGuitarIdentity({
   }
 
   const titleBrand = detectBrand(normalizedTitle);
-  const descriptionBrand = detectBrand(normalizedDescription);
+  const descriptionBrand = detectDescriptionBrand(normalizedDescription);
   const titleModel = detectModel(
     normalizedTitle,
     titleBrand?.conflict ? null : titleBrand?.brand ?? null,
