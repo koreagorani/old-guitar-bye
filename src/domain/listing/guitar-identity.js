@@ -2,6 +2,7 @@ import {
   GUITAR_BRAND_ALIASES,
   GUITAR_BRANDS,
 } from "./guitar-brand-aliases.js";
+import { matchBrandModelRule } from "./guitar-model-patterns.js";
 
 export const IDENTITY_CONFIDENCE = Object.freeze({
   HIGH: "HIGH",
@@ -118,12 +119,19 @@ function canonicalizeModelMatch(match) {
   return null;
 }
 
-function detectModel(text) {
+function detectModel(text, brand = null) {
   if (text === "") {
     return null;
   }
 
   const upper = stripBrandAliases(text).toUpperCase();
+
+  if (brand) {
+    const brandAware = matchBrandModelRule(brand, upper);
+    if (brandAware) {
+      return brandAware;
+    }
+  }
 
   for (const rule of KNOWN_TEXT_MODELS) {
     const match = upper.match(rule.pattern);
@@ -137,15 +145,28 @@ function detectModel(text) {
   }
 
   const candidates = [];
-  for (const pattern of MODEL_PATTERNS) {
+  const occupied = [];
+  for (const [patternIndex, pattern] of MODEL_PATTERNS.entries()) {
     const regex = new RegExp(pattern.source, "gi");
     for (const match of upper.matchAll(regex)) {
+      const start = match.index ?? -1;
+      const end = start + match[0].length;
+      if (
+        patternIndex > 0
+        && occupied.some(([occupiedStart, occupiedEnd]) => (
+          start >= occupiedStart && end <= occupiedEnd
+        ))
+      ) {
+        continue;
+      }
       const canonical = canonicalizeModelMatch(match);
       if (canonical) {
         candidates.push({
           model: canonical,
+          variant: null,
           raw: match[0],
         });
+        if (patternIndex === 0) occupied.push([start, end]);
       }
     }
   }
@@ -170,7 +191,7 @@ function detectModel(text) {
   };
 }
 
-function detectDescriptionModel(description) {
+function detectDescriptionModel(description, brand = null) {
   if (description === "") {
     return null;
   }
@@ -186,7 +207,7 @@ function detectDescriptionModel(description) {
   }
 
   const models = contexts
-    .map((context) => detectModel(context))
+    .map((context) => detectModel(context, brand))
     .filter(Boolean);
 
   if (models.some((model) => model.conflict)) {
@@ -263,7 +284,7 @@ function modelWasCanonicalized(raw, canonical) {
 function resolveModel(titleModel, descriptionModel, reasons) {
   if (titleModel?.conflict || descriptionModel?.conflict) {
     reasons.push("MULTIPLE_MODELS_IN_SOURCE");
-    return { model: null, source: null, conflict: true };
+    return { model: null, variant: null, source: null, conflict: true };
   }
 
   if (
@@ -272,7 +293,7 @@ function resolveModel(titleModel, descriptionModel, reasons) {
     && titleModel.model !== descriptionModel.model
   ) {
     reasons.push("TITLE_DESCRIPTION_MODEL_CONFLICT");
-    return { model: null, source: null, conflict: true };
+    return { model: null, variant: null, source: null, conflict: true };
   }
 
   if (titleModel?.model) {
@@ -285,6 +306,7 @@ function resolveModel(titleModel, descriptionModel, reasons) {
     }
     return {
       model: titleModel.model,
+      variant: titleModel.variant ?? null,
       source: "title",
       conflict: false,
     };
@@ -297,13 +319,14 @@ function resolveModel(titleModel, descriptionModel, reasons) {
     }
     return {
       model: descriptionModel.model,
+      variant: descriptionModel.variant ?? null,
       source: "description",
       conflict: false,
     };
   }
 
   reasons.push("MODEL_NOT_FOUND");
-  return { model: null, source: null, conflict: false };
+  return { model: null, variant: null, source: null, conflict: false };
 }
 
 function confidenceFor({
@@ -352,8 +375,18 @@ export function normalizeGuitarIdentity({
 
   const titleBrand = detectBrand(normalizedTitle);
   const descriptionBrand = detectBrand(normalizedDescription);
-  const titleModel = detectModel(normalizedTitle);
-  const descriptionModel = detectDescriptionModel(normalizedDescription);
+  const titleModel = detectModel(
+    normalizedTitle,
+    titleBrand?.conflict ? null : titleBrand?.brand ?? null,
+  );
+  const descriptionModel = detectDescriptionModel(
+    normalizedDescription,
+    descriptionBrand?.conflict
+      ? null
+      : (titleBrand?.conflict ? null : titleBrand?.brand)
+        ?? descriptionBrand?.brand
+        ?? null,
+  );
 
   const resolvedBrand = resolveBrand(
     titleBrand,
@@ -370,6 +403,7 @@ export function normalizeGuitarIdentity({
   return {
     brand: resolvedBrand.brand,
     model: resolvedModel.model,
+    variant: resolvedModel.variant,
     confidence: confidenceFor({
       brand: resolvedBrand.brand,
       model: resolvedModel.model,

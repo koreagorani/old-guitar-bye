@@ -191,3 +191,71 @@ test("validates input without guessing", () => {
     /Unknown guitarType/,
   );
 });
+
+
+test("Cort L100-O keeps meaningful model suffix and separates finish", () => {
+  const result = normalizeGuitarIdentity({ title: "Cort L100-O NS" });
+  assert.equal(result.brand, "CORT");
+  assert.equal(result.model, "L100-O");
+  assert.equal(result.variant, "NS");
+  assert.equal(result.confidence, "HIGH");
+});
+
+test("Dexter DOM-16-MOP separates model from variant", () => {
+  const result = normalizeGuitarIdentity({ title: "Dexter DOM-16-MOP" });
+  assert.equal(result.brand, "DEXTER");
+  assert.equal(result.model, "DOM16");
+  assert.equal(result.variant, "MOP");
+  assert.equal(result.confidence, "HIGH");
+});
+
+test("Dexter DOM 16m-OP normalizes the same variant", () => {
+  const result = normalizeGuitarIdentity({ title: "덱스터 Dom 16m-OP 마호가니" });
+  assert.equal(result.model, "DOM16");
+  assert.equal(result.variant, "MOP");
+  assert.equal(result.confidence, "HIGH");
+});
+
+test("Gopherwood S Classic V ignores arbitrary BLACK500 code", () => {
+  const result = normalizeGuitarIdentity({
+    title: "GopherWood - S Classic V Jet Black (BLACK500) 기타",
+  });
+  assert.equal(result.brand, "GOPHERWOOD");
+  assert.equal(result.model, "S CLASSIC V");
+  assert.equal(result.variant, "JET BLACK");
+  assert.equal(result.confidence, "HIGH");
+});
+
+test("brand-aware text models improve recall", () => {
+  assert.equal(
+    normalizeGuitarIdentity({ title: "크래프터 SURE PLUS 어쿠스틱 기타" }).model,
+    "SURE PLUS",
+  );
+  assert.equal(
+    normalizeGuitarIdentity({ title: "[새상품] 콜트 어스 100 입문용 기타" }).model,
+    "EARTH100",
+  );
+  assert.equal(
+    normalizeGuitarIdentity({ title: "야마하 SLG-200s 사일런트 어쿠스틱기타" }).model,
+    "SLG200S",
+  );
+});
+
+test("nested generic numeric match no longer creates a false conflict", () => {
+  const result = normalizeGuitarIdentity({ title: "YAMAHA SLG-200s" });
+  assert.equal(result.model, "SLG200S");
+  assert.equal(result.confidence, "HIGH");
+});
+
+test("existing model regressions remain stable", () => {
+  const cases = [
+    ["CORT AD810", "AD810"],
+    ["GOPHERWOOD G110", "G110"],
+    ["GOPHERWOOD K330RCE", "K330RCE"],
+    ["EPIPHONE EJ-200", "EJ200"],
+    ["EPIPHONE PR-150 NA", "PR150"],
+  ];
+  for (const [title, model] of cases) {
+    assert.equal(normalizeGuitarIdentity({ title }).model, model, title);
+  }
+});
