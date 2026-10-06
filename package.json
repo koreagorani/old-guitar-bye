@@ -12,6 +12,7 @@
     "test": "node --test",
     "collect:daangn": "node scripts/collect-daangn.js",
     "collect:bunjang": "node scripts/collect-bunjang.js",
-    "analyze:reference-coverage": "node scripts/analyze-reference-coverage.js"
+    "analyze:reference-coverage": "node scripts/analyze-reference-coverage.js",
+    "diagnose:identity": "node scripts/diagnose-low-confidence.js"
   }
 }
