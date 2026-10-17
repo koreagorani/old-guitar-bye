@@ -132,7 +132,8 @@ test("track results are included in journal-friendly log output", async () =>
     const lines = formatOpportunityMonitorLog(result);
     assert.match(lines[0], /^\[collector\] candidates=1 saved=1 skipped=0$/);
     assert.match(lines[1], /^\[evaluator\] track=1 /);
-    assert.match(lines[2], /^TRACK YAMAHA F310 20,000 \/ 195,000 = 10\.26%/);
+    assert.equal(lines[2], "[notifier] sent=0 duplicate=0 failed=0");
+    assert.match(lines[3], /^TRACK YAMAHA F310 20,000 \/ 195,000 = 10\.26%/);
   }));
 
 test("collector failure exits the monitor at COLLECT stage", async () =>
@@ -239,3 +240,60 @@ test("monitor env config accepts threshold and collection overrides", () => {
   assert.equal(parsed.lookbackDays, 7);
   assert.equal(parsed.thresholdPct, 11.5);
 });
+
+
+test("monitor integrates notifier summary for TRACK opportunities", async () =>
+  withDatabase(async (database) => {
+    const notified = [];
+    const result = await runBunjangOpportunityMonitor({
+      database,
+      client: clientFor(),
+      resolver: resolverAt(200000),
+      notifier: {
+        async notify(opportunities) {
+          notified.push(...opportunities.filter(({ decision }) => decision === "TRACK"));
+          return {
+            sent: 1,
+            duplicate: 0,
+            failed: 0,
+            failures: [],
+          };
+        },
+      },
+      config: config(),
+      now: () => NOW,
+    });
+    assert.equal(notified.length, 1);
+    assert.deepEqual(result.notifier, {
+      sent: 1,
+      duplicate: 0,
+      failed: 0,
+      failures: [],
+    });
+    assert.equal(
+      formatOpportunityMonitorLog(result)[2],
+      "[notifier] sent=1 duplicate=0 failed=0",
+    );
+  }));
+
+test("monitor surfaces notifier infrastructure failure as NOTIFY", async () =>
+  withDatabase(async (database) => {
+    await assert.rejects(
+      runBunjangOpportunityMonitor({
+        database,
+        client: clientFor(),
+        resolver: resolverAt(200000),
+        notifier: {
+          async notify() {
+            throw new Error("notification repository unavailable");
+          },
+        },
+        config: config(),
+        now: () => NOW,
+      }),
+      (error) => (
+        error instanceof OpportunityMonitorError
+        && error.stage === "NOTIFY"
+      ),
+    );
+  }));

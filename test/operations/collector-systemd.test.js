@@ -17,6 +17,14 @@ test("collector service points at the production project and database", () => {
   assert.match(service, /DATABASE_PATH=\/home\/ubuntu\/old-guitar-bye\/data\/guitar\.db/);
   assert.match(service, /BUNJANG_ENRICH_DETAILS=false/);
   assert.match(service, /OPPORTUNITY_THRESHOLD_PCT=12/);
+  assert.match(
+    service,
+    /EnvironmentFile=-\/home\/ubuntu\/old-guitar-bye\/\.env/,
+  );
+  assert.match(
+    service,
+    /EnvironmentFile=-\/etc\/old-guitar-bye\/collector\.env/,
+  );
   assert.match(service, /ExecStart=\/usr\/bin\/node scripts\/run-opportunity-monitor\.js/);
 });
 

@@ -64,6 +64,7 @@ export async function runBunjangOpportunityMonitor({
   database,
   client,
   resolver,
+  notifier = null,
   config,
   now = () => new Date(),
 }) {
@@ -114,6 +115,23 @@ export async function runBunjangOpportunityMonitor({
     throw new OpportunityMonitorError("EVALUATE", error);
   }
 
+  let notifierSummary = {
+    sent: 0,
+    duplicate: 0,
+    failed: 0,
+    failures: [],
+  };
+  if (notifier !== null) {
+    if (typeof notifier.notify !== "function") {
+      throw new TypeError("notifier.notify must be a function");
+    }
+    try {
+      notifierSummary = await notifier.notify(evaluation.results);
+    } catch (error) {
+      throw new OpportunityMonitorError("NOTIFY", error);
+    }
+  }
+
   return {
     collector: {
       candidateCount: collected.candidates.length,
@@ -123,6 +141,7 @@ export async function runBunjangOpportunityMonitor({
       sourceCount: collected.sources.length,
     },
     evaluator: evaluation,
+    notifier: notifierSummary,
   };
 }
 
@@ -134,6 +153,7 @@ export function formatOpportunityMonitorLog(result) {
   const lines = [
     `[collector] candidates=${result.collector.candidateCount} saved=${result.collector.savedCount} skipped=${result.collector.skippedCount}`,
     `[evaluator] track=${result.evaluator.summary.track} ignore=${result.evaluator.summary.ignore} unresolvedIdentity=${result.evaluator.summary.identityUnresolved} unresolvedReference=${result.evaluator.summary.referenceUnresolved} irrelevant=${result.evaluator.summary.irrelevant}`,
+    `[notifier] sent=${result.notifier?.sent ?? 0} duplicate=${result.notifier?.duplicate ?? 0} failed=${result.notifier?.failed ?? 0}`,
   ];
 
   for (const item of result.evaluator.track) {

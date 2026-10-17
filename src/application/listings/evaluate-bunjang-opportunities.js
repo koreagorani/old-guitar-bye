@@ -57,6 +57,7 @@ function dedupeListings(listings) {
 
 function baseResult(listing, relevance, identity = null) {
   return {
+    marketplace: listing.marketplace ?? "BUNJANG",
     externalListingId: listing.externalListingId,
     title: listing.title,
     url: listing.url,

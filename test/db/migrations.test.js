@@ -70,6 +70,7 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
         "002_add_sale_listing_external_id.sql",
         "003_add_sale_listing_to_sales.sql",
         "004_make_listing_location_nullable.sql",
+        "005_add_opportunity_notifications.sql",
       ]);
       assert.deepEqual(applyMigrations(database), []);
     });
@@ -108,11 +109,31 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
         "expenses",
         "inventory_items",
         "listings",
+        "opportunity_notifications",
         "repair_logs",
         "sale_listings",
         "sales",
         "schema_migrations",
       ]);
+    });
+
+    await t.test("creates opportunity notification dedupe table", () => {
+      const columns = database.prepare(
+        "PRAGMA table_info(opportunity_notifications)",
+      ).all().map(({ name }) => name);
+      assert.deepEqual(columns, [
+        "id",
+        "marketplace",
+        "external_listing_id",
+        "notified_at",
+        "asking_price_krw",
+        "reference_new_price_krw",
+        "ratio_pct",
+      ]);
+      const indexes = database.prepare(
+        "PRAGMA index_list(opportunity_notifications)",
+      ).all();
+      assert.ok(indexes.some(({ unique }) => unique === 1));
     });
 
     const listingId = insertListing(database, "listing-1");
