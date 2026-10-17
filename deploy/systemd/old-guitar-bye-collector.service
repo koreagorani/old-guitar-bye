@@ -1,0 +1,23 @@
+[Unit]
+Description=Old Guitar Bye Bunjang collector and opportunity evaluator
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/old-guitar-bye
+Environment=DATABASE_PATH=/home/ubuntu/old-guitar-bye/data/guitar.db
+Environment="BUNJANG_SEARCH_KEYWORDS=기타,통기타,어쿠스틱 기타"
+Environment=BUNJANG_RESULTS_PER_KEYWORD=20
+Environment=BUNJANG_ENRICH_DETAILS=false
+Environment=OPPORTUNITY_LOOKBACK_DAYS=30
+Environment=OPPORTUNITY_THRESHOLD_PCT=12
+EnvironmentFile=-/etc/old-guitar-bye/collector.env
+ExecStart=/usr/bin/node scripts/run-opportunity-monitor.js
+TimeoutStartSec=25min
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
