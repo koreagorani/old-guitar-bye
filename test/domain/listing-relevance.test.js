@@ -113,3 +113,72 @@ test("rejects invalid title input", () => {
     /title must be a string/,
   );
 });
+
+
+test("rejects Korean 기타 used as other/etc context", () => {
+  const titles = [
+    "ssd 최고가 매입합니다 삼성 하이닉스 WD 기타 등등",
+    "[무료배송]오토바이 헬멧 블루투스 팜 - 기타 외",
+    "(새상품 미사용)오토바이 헬멧용 블루투스 팜 - 기타 외 세나 비모토-마",
+    "기타 여러 상품 정리",
+    "기타 품목 일괄 판매",
+  ];
+  for (const title of titles) {
+    const result = classifyListingRelevance({ title });
+    assert.equal(result.relevance, LISTING_RELEVANCE.IRRELEVANT, title);
+  }
+});
+
+test("rejects obvious non-instrument product contexts", () => {
+  const titles = [
+    "천재 기타리스트 랜디 로즈 와 오지 오스본 LP",
+    "기타 피규어",
+    "기타 굿즈",
+    "일렉기타 포토카드 굿즈 양도",
+  ];
+  for (const title of titles) {
+    assert.equal(
+      classifyListingRelevance({ title }).relevance,
+      LISTING_RELEVANCE.IRRELEVANT,
+      title,
+    );
+  }
+});
+
+test("keeps strong guitar-body evidence relevant", () => {
+  const titles = [
+    "픽업 통기타",
+    "덱스터 어쿠스틱기타",
+    "헥스 통기타",
+    "스윙 베이스기타",
+    "스윙 일렉기타(화이트)",
+    "EQ장착 어쿠스틱 기타 (가방 포함)",
+    "야마하 F310 기타 + 케이스",
+    "콜트 AD810 통기타",
+  ];
+  for (const title of titles) {
+    assert.equal(
+      classifyListingRelevance({ title }).relevance,
+      LISTING_RELEVANCE.RELEVANT,
+      title,
+    );
+  }
+});
+
+test("rejects buyer-intent posts from sale discovery", () => {
+  for (const title of [
+    "Martin D28 구합니다",
+    "Taylor 214ce 찾습니다",
+    "야마하 F310 삽니다",
+  ]) {
+    const result = classifyListingRelevance({ title });
+    assert.equal(result.relevance, LISTING_RELEVANCE.IRRELEVANT, title);
+    assert.ok(result.reasons.some((reason) => reason.startsWith("BUYER_INTENT_")));
+  }
+});
+
+test("known brand plus model plus generic guitar remains relevant", () => {
+  const result = classifyListingRelevance({ title: "야마하 F310 기타" });
+  assert.equal(result.relevance, LISTING_RELEVANCE.RELEVANT);
+  assert.ok(result.reasons.includes("BRAND_MODEL_GUITAR_CONTEXT"));
+});
