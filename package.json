@@ -14,6 +14,7 @@
     "collect:bunjang": "node scripts/collect-bunjang.js",
     "analyze:reference-coverage": "node scripts/analyze-reference-coverage.js",
     "diagnose:identity": "node scripts/diagnose-low-confidence.js",
-    "diagnose:relevance": "node scripts/diagnose-listing-relevance.js"
+    "diagnose:relevance": "node scripts/diagnose-listing-relevance.js",
+    "evaluate:opportunities": "node scripts/evaluate-bunjang-opportunities.js"
   }
 }

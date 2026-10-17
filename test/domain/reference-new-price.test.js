@@ -133,3 +133,26 @@ test("invalid or LOW-confidence reference is UNRESOLVED", () => {
   });
   assert.equal(low.decision, USED_NEW_DECISION.UNRESOLVED);
 });
+
+
+test("calculateUsedToNewRatio supports threshold override", () => {
+  const result = calculateUsedToNewRatio({
+    askingPriceKrw: 13000,
+    referenceNewPriceKrw: 100000,
+    referenceConfidence: REFERENCE_PRICE_CONFIDENCE.HIGH,
+    thresholdPct: 13,
+  });
+  assert.equal(result.decision, USED_NEW_DECISION.TRACK);
+});
+
+test("calculateUsedToNewRatio rejects invalid threshold", () => {
+  assert.throws(
+    () => calculateUsedToNewRatio({
+      askingPriceKrw: 10000,
+      referenceNewPriceKrw: 100000,
+      referenceConfidence: REFERENCE_PRICE_CONFIDENCE.HIGH,
+      thresholdPct: -1,
+    }),
+    /thresholdPct/,
+  );
+});

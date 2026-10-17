@@ -162,8 +162,12 @@ export function calculateUsedToNewRatio({
   askingPriceKrw,
   referenceNewPriceKrw,
   referenceConfidence,
+  thresholdPct = 12,
 }) {
   assertNonNegativeInteger(askingPriceKrw, "askingPriceKrw");
+  if (!Number.isFinite(thresholdPct) || thresholdPct < 0) {
+    throw new TypeError("thresholdPct must be a non-negative finite number");
+  }
 
   const usableReference = Number.isFinite(referenceNewPriceKrw)
     && referenceNewPriceKrw > 0
@@ -186,7 +190,7 @@ export function calculateUsedToNewRatio({
   return {
     ratio,
     percentage,
-    decision: percentage <= 12
+    decision: percentage <= thresholdPct
       ? USED_NEW_DECISION.TRACK
       : USED_NEW_DECISION.IGNORE,
   };
