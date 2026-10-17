@@ -1,4 +1,5 @@
 const BUNJANG_API_BASE_URL = "https://api.bunjang.co.kr";
+const BUNJANG_SEARCH_PATH = "/api/search/v8/pw/product/specs/keyword";
 const DEFAULT_USER_AGENT = "old-guitar-bye/0.1 bunjang-read-only-poc";
 
 export class BunjangAccessError extends Error {
@@ -97,13 +98,13 @@ export function createBunjangClient({
     async search({ keyword, limit = 20 }) {
       assertNonEmptyString(keyword, "keyword");
       assertLimit(limit);
-      const url = new URL("/api/1/find_v2.json", BUNJANG_API_BASE_URL);
+
+      // The current public search endpoint returns a fixed first page (currently
+      // 60 grid items). page/size query parameters are ignored, so the
+      // collector applies the requested low-frequency limit after parsing.
+      const url = new URL(BUNJANG_SEARCH_PATH, BUNJANG_API_BASE_URL);
       url.searchParams.set("q", keyword.trim());
-      url.searchParams.set("order", "date");
-      url.searchParams.set("page", "0");
-      url.searchParams.set("n", String(limit));
-      url.searchParams.set("stat_device", "w");
-      url.searchParams.set("req_ref", "search");
+      url.searchParams.set("sort", "latest");
       return fetchJson(fetchImpl, url, userAgent, timeoutMs);
     },
 

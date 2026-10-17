@@ -8,8 +8,8 @@ import {
 
 function response({
   status=200,
-  url="https://api.bunjang.co.kr/api/1/find_v2.json",
-  body={list:[]},
+  url="https://api.bunjang.co.kr/api/search/v8/pw/product/specs/keyword",
+  body={data:{searchSpec:{uiBlockList:[]}}},
 }={}) {
   return {
     ok:status >= 200 && status < 300,
@@ -29,11 +29,12 @@ test("builds the low-frequency public search API request", async () => {
   });
   await client.search({keyword:"통기타",limit:5});
   const url=new URL(calls[0].url);
-  assert.equal(url.pathname,"/api/1/find_v2.json");
+  assert.equal(url.pathname,"/api/search/v8/pw/product/specs/keyword");
   assert.equal(url.searchParams.get("q"),"통기타");
-  assert.equal(url.searchParams.get("order"),"date");
-  assert.equal(url.searchParams.get("page"),"0");
-  assert.equal(url.searchParams.get("n"),"5");
+  assert.equal(url.searchParams.get("sort"),"latest");
+  assert.equal(url.searchParams.has("page"),false);
+  assert.equal(url.searchParams.has("size"),false);
+  assert.equal(url.searchParams.has("n"),false);
 });
 
 test("builds public detail API request", async () => {
@@ -50,7 +51,7 @@ test("builds public detail API request", async () => {
   assert.equal(url.searchParams.get("viewerUid"),"-1");
 });
 
-for (const status of [403,429]) {
+for (const status of [403,404,429]) {
   test(`stops on HTTP ${status}`, async () => {
     const client=createBunjangClient({
       fetchImpl:async (url) => response({status,url:String(url)}),

@@ -1,0 +1,119 @@
+{
+  "data": {
+    "searchSpec": {
+      "policyKey": "pw.product.keyword",
+      "version": "v1",
+      "mandatoryFilters": [
+        {
+          "key": "q",
+          "values": [
+            "통기타"
+          ]
+        }
+      ],
+      "additionalFilters": [],
+      "uiBlocks": null,
+      "uiBlockList": [
+        {
+          "id": "mainGridSortCount",
+          "blockType": "productList.grid.sortCount",
+          "searchCountResponse": {
+            "totalCount": 925
+          },
+          "searchSortResponse": {
+            "selected": "latest"
+          }
+        },
+        {
+          "id": "mainGrid",
+          "blockType": "productList.grid.main",
+          "searchResponse": {
+            "data": [
+              {
+                "pid": 437205904,
+                "name": "GopherWood - S Classic V Jet Black (BLACK500) 기타",
+                "price": 230000,
+                "status": "SELLING",
+                "shop": {
+                  "uid": 1259043,
+                  "isOfficialSeller": false
+                },
+                "updatedAt": "2026-10-17T10:26:27Z",
+                "ad": false,
+                "type": "PRODUCT"
+              },
+              {
+                "pid": 401232660,
+                "name": "일괄 굿즈 기타 검색 노이즈",
+                "price": 25000,
+                "status": "SELLING",
+                "shop": {
+                  "uid": 84009840,
+                  "isOfficialSeller": false
+                },
+                "updatedAt": "2026-10-17T10:06:03Z",
+                "ad": false,
+                "type": "PRODUCT"
+              },
+              {
+                "pid": 435577837,
+                "name": "콜트 통기타 클래식기타 기타",
+                "price": 140000,
+                "status": "SELLING",
+                "shop": {
+                  "uid": 6787133,
+                  "isOfficialSeller": false
+                },
+                "updatedAt": "2026-10-17T09:47:19Z",
+                "ad": false,
+                "type": "PRODUCT"
+              },
+              {
+                "pid": null,
+                "name": "광고 슬롯",
+                "price": 1000,
+                "status": "SELLING",
+                "ad": true,
+                "type": "AD"
+              },
+              {
+                "pid": 437205904,
+                "name": "중복 고퍼우드 기타",
+                "price": 230000,
+                "status": "SELLING",
+                "updatedAt": "2026-10-17T10:26:27Z",
+                "ad": false,
+                "type": "PRODUCT"
+              },
+              {
+                "pid": 499999999,
+                "name": "가격 누락 기타",
+                "price": null,
+                "status": "SELLING",
+                "updatedAt": "not-a-date",
+                "ad": false,
+                "type": "PRODUCT"
+              }
+            ],
+            "cursor": "cursor-1",
+            "totalCount": 925,
+            "loggingContext": {
+              "pageNumber": 0
+            },
+            "nextCursor": "cursor-2"
+          }
+        }
+      ]
+    },
+    "signals": [
+      "SEARCH_SUCCESS"
+    ],
+    "loggingContext": {
+      "requestId": "fixture",
+      "searchTerm": "통기타",
+      "pageNumber": 0,
+      "totalElements": 925,
+      "searchOptions": "{\"sort\":\"latest\"}"
+    }
+  }
+}

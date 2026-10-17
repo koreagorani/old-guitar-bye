@@ -13,6 +13,10 @@ const searchFixture = JSON.parse(readFileSync(
   new URL("../fixtures/bunjang-search.json", import.meta.url),
   "utf8",
 ));
+const currentSearchFixture = JSON.parse(readFileSync(
+  new URL("../fixtures/bunjang-search-v8.json", import.meta.url),
+  "utf8",
+));
 const detailFixture = JSON.parse(readFileSync(
   new URL("../fixtures/bunjang-detail.json", import.meta.url),
   "utf8",
@@ -82,4 +86,52 @@ test("rejects a mismatched detail id", () => {
     }),
     /detail id mismatch/,
   );
+});
+
+
+test("parses the current v8 search response shape", () => {
+  const items = parseBunjangSearchPayload(currentSearchFixture, {
+    ...context,
+    sourceUrl: "https://api.bunjang.co.kr/api/search/v8/pw/product/specs/keyword?q=test&sort=latest",
+  });
+  assert.equal(items.length, 5);
+  assert.equal(items[0].externalListingId, "437205904");
+  assert.equal(items[0].title, "GopherWood - S Classic V Jet Black (BLACK500) 기타");
+  assert.equal(items[0].priceKrw, 230000);
+  assert.equal(items[0].status, "SELLING");
+  assert.equal(items[0].locationText, null);
+  assert.equal(items[0].sellerName, null);
+  assert.equal(items[0].postedAt, "2026-10-17T10:26:27.000Z");
+  assert.equal(items[0].sourceMetadata.sourceType, "PRODUCT");
+});
+
+test("current v8 search ignores malformed/ad slots and preserves duplicates for collector dedupe", () => {
+  const items = parseBunjangSearchPayload(currentSearchFixture, context);
+  assert.equal(items.some(({ externalListingId }) => externalListingId === ""), false);
+  assert.equal(
+    items.filter(({ externalListingId }) => externalListingId === "437205904").length,
+    2,
+  );
+  const noPrice = items.find(({ externalListingId }) => externalListingId === "499999999");
+  assert.equal(noPrice.priceKrw, null);
+  assert.equal(noPrice.postedAt, null);
+});
+
+test("returns empty array for current empty and malformed search responses", () => {
+  assert.deepEqual(parseBunjangSearchPayload({
+    data:{searchSpec:{uiBlockList:[{
+      id:"mainGrid",
+      searchResponse:{data:[]},
+    }]}},
+  }), []);
+  assert.deepEqual(parseBunjangSearchPayload({
+    data:{searchSpec:{uiBlockList:"broken"}},
+  }), []);
+  assert.deepEqual(parseBunjangSearchPayload(null), []);
+});
+
+test("legacy find_v2 fixture remains supported", () => {
+  const items = parseBunjangSearchPayload(searchFixture, context);
+  assert.equal(items[0].externalListingId, "300001");
+  assert.equal(items[0].locationText, "서울 강남구");
 });

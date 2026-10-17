@@ -14,6 +14,10 @@ const fixture = JSON.parse(readFileSync(
   new URL("../fixtures/bunjang-search.json", import.meta.url),
   "utf8",
 ));
+const currentFixture = JSON.parse(readFileSync(
+  new URL("../fixtures/bunjang-search-v8.json", import.meta.url),
+  "utf8",
+));
 const detail = JSON.parse(readFileSync(
   new URL("../fixtures/bunjang-detail.json", import.meta.url),
   "utf8",
@@ -136,5 +140,39 @@ test("repeated persistence updates instead of duplicating the listing row", asyn
         "SELECT last_seen_at AS lastSeenAt FROM listings WHERE marketplace=? AND external_listing_id=?",
       ).get("BUNJANG","300001").lastSeenAt,
       "2026-10-01T11:00:00Z",
+    );
+  }));
+
+
+test("current v8 response deduplicates duplicate external ids before persistence", async () =>
+  withDatabase(async (database) => {
+    const client = {
+      async search() {
+        return {
+          data: currentFixture,
+          sourceUrl: "https://api.bunjang.co.kr/api/search/v8/pw/product/specs/keyword?q=통기타&sort=latest",
+        };
+      },
+    };
+    const result = await collectBunjangListingCandidates({
+      client,
+      keywords:["통기타"],
+      resultsPerKeyword:10,
+      now:() => new Date("2026-10-17T11:00:00Z"),
+    });
+    assert.equal(
+      result.candidates.filter(({ externalListingId }) => externalListingId === "437205904").length,
+      1,
+    );
+    const persisted = persistBunjangListingCandidates(
+      database,
+      result.candidates,
+      { lastSeenAt:result.discoveredAt },
+    );
+    assert.equal(persisted.saved.length, 3);
+    assert.equal(persisted.skipped.length, 1);
+    assert.equal(
+      database.prepare("SELECT COUNT(*) AS count FROM listings").get().count,
+      3,
     );
   }));

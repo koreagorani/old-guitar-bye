@@ -28,8 +28,14 @@ function normalizeText(value) {
 }
 
 function normalizePostedAt(value) {
-  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
-    value = Number(value.trim());
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d+$/.test(trimmed)) {
+      value = Number(trimmed);
+    } else if (trimmed !== "") {
+      const date = new Date(trimmed);
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    }
   }
   if (!Number.isFinite(value) || value < 0) {
     return null;
@@ -46,10 +52,44 @@ function normalizeStatus(value) {
   return SEARCH_STATUS[key] ?? key;
 }
 
+function currentSearchItems(payload) {
+  const uiBlockList = payload?.data?.searchSpec?.uiBlockList;
+  if (!Array.isArray(uiBlockList)) {
+    return null;
+  }
+
+  const mainGrid = uiBlockList.find((block) => (
+    block?.id === "mainGrid"
+    || block?.blockType === "productList.grid.main"
+  ));
+  if (Array.isArray(mainGrid?.searchResponse?.data)) {
+    return mainGrid.searchResponse.data;
+  }
+
+  const fallbackGrid = uiBlockList.find((block) =>
+    Array.isArray(block?.searchResponse?.data));
+  return Array.isArray(fallbackGrid?.searchResponse?.data)
+    ? fallbackGrid.searchResponse.data
+    : [];
+}
+
 function searchItems(payload) {
   if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
     return [];
   }
+
+  const current = currentSearchItems(payload);
+  if (current !== null) {
+    return current;
+  }
+
+  // Transitional/current variants seen in public clients.
+  if (Array.isArray(payload?.searchResponse?.data)) {
+    return payload.searchResponse.data;
+  }
+
+  // Legacy find_v2 fixture support. The collector no longer calls this dead
+  // endpoint, but retaining the parser keeps old stored fixtures compatible.
   return Array.isArray(payload.list) ? payload.list : [];
 }
 
@@ -80,8 +120,8 @@ export function normalizeBunjangSearchItem(raw, {
     priceKrw: parseInteger(raw.price),
     url: `${BUNJANG_WEB_BASE_URL}/products/${encodeURIComponent(externalListingId)}`,
     locationText: normalizeText(raw.location),
-    sellerName: null,
-    postedAt: normalizePostedAt(raw.update_time),
+    sellerName: normalizeText(raw.shop?.name),
+    postedAt: normalizePostedAt(raw.updatedAt ?? raw.update_time),
     status: normalizeStatus(raw.status),
     discoveredAt: discoveredAt ?? null,
     description: "",
@@ -91,6 +131,7 @@ export function normalizeBunjangSearchItem(raw, {
       rawStatus: raw.status ?? null,
       used: raw.used ?? null,
       freeShipping: raw.free_shipping ?? null,
+      sourceType: raw.type ?? null,
     },
   };
 }
