@@ -1,0 +1,16 @@
+name: Bunjang targeted current capture
+on:
+  push:
+    paths:
+      - ".github/workflows/bunjang-targeted-current.yml"
+      - "scripts/capture-bunjang-targeted-current.js"
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/capture-bunjang-targeted-current.js
