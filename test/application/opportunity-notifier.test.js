@@ -33,6 +33,7 @@ function track(overrides = {}) {
     ratioPct: (20000 / 235000) * 100,
     decision: "TRACK",
     reasons: [],
+    ...overrides,
   };
 }
 
