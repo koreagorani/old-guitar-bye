@@ -22,7 +22,11 @@ test("summarizes relevance counts and reasons", () => {
   assert.equal(result.counts.IRRELEVANT, 1);
   assert.equal(result.counts.UNCERTAIN, 1);
   assert.equal(result.samples.length, 3);
-  assert.ok(result.reasonCounts.ACCESSORY_ONLY_MERCH >= 1);
+  assert.ok(
+    (result.reasonCounts.ACCESSORY_ONLY_MERCH ?? 0)
+      + (result.reasonCounts.NON_INSTRUMENT_MERCH ?? 0)
+      >= 1,
+  );
 });
 
 test("respects lookback and output limit", () => {

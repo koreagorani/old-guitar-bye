@@ -105,7 +105,7 @@ const ACCESSORY_RULES = Object.freeze([
 const NON_GUITAR_OTHER_CONTEXT_RULES = Object.freeze([
   {
     reason: "KOREAN_OTHER_ETC_CONTEXT",
-    pattern: /(?:기타\s*(?:등등|등\b|외\b|여러\b|상품\b|품목\b))/i,
+    pattern: /(?:기타\s*(?:등등|등(?:\s|$)|외(?:\s|$)|여러(?:\s|$)|상품(?:\s|$)|품목(?:\s|$)))/i,
   },
 ]);
 
