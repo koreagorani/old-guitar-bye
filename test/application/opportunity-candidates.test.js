@@ -108,3 +108,12 @@ test("registration refuses unknown TRACK listing and rolls back",()=>withDb(asyn
   assert.throws(()=>run(db,[opportunity("999")]),/missing from DB/);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM opportunity_candidates").get().n,0);
 }));
+
+test("preexisting received acquisition suppresses automatic candidate", () => withDb(async db => {
+  const item = opportunity("1200");
+  insertListing(db, item);
+  const row = db.prepare("SELECT id FROM listings WHERE external_listing_id = ?").get("1200");
+  db.prepare("INSERT INTO acquisitions (listing_id, status) VALUES (?, 'RECEIVED')").run(row.id);
+  assert.equal(run(db, [item]).suppressed, 1);
+  assert.equal(listActiveCandidates(db).total, 0);
+}));
