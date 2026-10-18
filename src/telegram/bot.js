@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
+import { handleCandidatesCommand, handleCandidateCallback, handlePendingCandidatePurchase } from "./interactions/candidate-flow.js";
 import { handleInventoryCommand } from "./commands/inventory-command.js";
 import { handleInventoryCallback } from "./callbacks/inventory-callback-handler.js";
 import {
@@ -55,6 +56,9 @@ export const HELP_MESSAGE = [
   "/add",
   "새 기타 등록",
   "",
+  "/candidates",
+  "매입 후보 목록",
+  "",
   "/help",
   "사용 방법 보기",
 ].join("\n");
@@ -63,6 +67,7 @@ export const TELEGRAM_COMMANDS = Object.freeze([
   Object.freeze({ command: "start", description: "봇 안내" }),
   Object.freeze({ command: "inventory", description: "현재 재고 목록 조회" }),
   Object.freeze({ command: "add", description: "새 기타 등록" }),
+  Object.freeze({ command: "candidates", description: "매입 후보 목록" }),
   Object.freeze({ command: "help", description: "사용 가능한 기능 안내" }),
 ]);
 
@@ -125,6 +130,9 @@ export async function handleTelegramUpdate(
       callbackQuery,
       answerCallback,
       (acknowledge) => {
+        if (callbackQuery.data?.startsWith("cand:")) {
+          return handleCandidateCallback({ database, callbackQuery, pendingInteractions, editMessage, answerCallback:acknowledge });
+        }
         if (callbackQuery.data?.startsWith("add:")) {
           return handleAddInventoryCallback({
             callbackQuery,
@@ -207,6 +215,9 @@ export async function handleTelegramUpdate(
       });
     }
   };
+
+  const candidateResult = await handlePendingCandidatePurchase({database,message,pendingInteractions,editMessage,cleanupMessage});
+  if (candidateResult !== null) return candidateResult;
 
   const addResult = await handlePendingAddInventoryMessage({
     database,
@@ -294,6 +305,7 @@ export async function handleTelegramUpdate(
       sendMessage,
     });
   }
+  if (name === "/candidates") return handleCandidatesCommand({database,chatId:message.chat.id,sendMessage});
   if (name === "/add") {
     return beginAddInventoryFlow({
       chatId: message.chat.id,
