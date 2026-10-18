@@ -133,7 +133,7 @@ test("opens the edit menu from inventory detail", async () => withDatabase(async
     telegram.edits[0].replyMarkup.inline_keyboard.map(
       (row) => row.map(({ text }) => text),
     ),
-    [["매입가 수정", "예상 판매가 수정"], ["뒤로"]],
+    [["매입가 수정", "예상 판매가 수정"], ["재고 제외"], ["뒤로"]],
   );
   assert.equal(pending.has(123), false);
 }));

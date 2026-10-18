@@ -7,7 +7,7 @@ test("hides record edit actions when there are no records", () => {
   const actions = renderInventoryEditMenu("IN_STOCK");
   assert.deepEqual(
     actions.primaryActions.map(({ id }) => id),
-    ["edit_purchase_price", "edit_expected_sale_price"],
+    ["edit_purchase_price", "edit_expected_sale_price", "archive_confirm"],
   );
 });
 

@@ -40,7 +40,7 @@ export async function handleInventoryCommand({
   if (isInventoryListCommand(commandText)) {
     const inventoryItems = listActiveInventoryItems(database);
     if (inventoryItems.length === 0) {
-      await sendMessage({ chatId, text: EMPTY_INVENTORY_MESSAGE });
+      await sendMessage({ chatId, ...renderInventoryList([]) });
       return { status: "empty" };
     }
 

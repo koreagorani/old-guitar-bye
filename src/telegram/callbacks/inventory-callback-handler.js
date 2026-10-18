@@ -92,10 +92,6 @@ export async function handleInventoryCallback({
     const rendered = renderInventoryList(inventoryItems, {
       page: page ?? 0, archived,
     });
-    // Legacy empty-list callbacks remain compatible.
-    if (!archived && inventoryItems.length === 0 && page === null) {
-      rendered.replyMarkup = { inline_keyboard: [] };
-    }
     await editMessage({ chatId, messageId, ...rendered });
     await acknowledge(answerCallback, callbackQuery.id, null);
     return { status: "listed", count: inventoryItems.length };
@@ -121,7 +117,7 @@ export async function handleInventoryCallback({
     return { status: "archived" };
   }
 
-  if (action === "open_archived" || (action === "open" && inventory.archivedAt !== null)) {
+  if ((action === "open_archived" || action === "open") && inventory.archivedAt !== null) {
     await editMessage({ chatId, messageId,
       ...renderArchivedInventoryDetail(getInventoryDetail(database, inventory.id), page) });
     await acknowledge(answerCallback, callbackQuery.id, null);

@@ -72,6 +72,7 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
         "004_make_listing_location_nullable.sql",
         "005_add_opportunity_notifications.sql",
         "006_add_opportunity_candidates.sql",
+        "007_add_inventory_archive.sql",
       ]);
       assert.deepEqual(applyMigrations(database), []);
     });
@@ -97,6 +98,11 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
         "PRAGMA table_info(listings)",
       ).all().find(({ name }) => name === "seller_location_text");
       assert.equal(locationColumn.notnull, 0);
+    });
+
+    await t.test("adds independent inventory archive flag", () => {
+      const column = database.prepare("PRAGMA table_info(inventory_items)").all().find(({name}) => name === "archived_at");
+      assert.equal(column?.notnull, 0);
     });
 
     await t.test("creates every table", () => {

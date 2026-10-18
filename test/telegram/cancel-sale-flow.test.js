@@ -130,7 +130,7 @@ test("shows sale cancellation only in the SOLD edit menu", async () => withDatab
     soldTelegram.edits[0].replyMarkup.inline_keyboard.map(
       (row) => row.map(({ text }) => text),
     ),
-    [["매입가 수정", "예상 판매가 수정"], ["판매 취소"], ["뒤로"]],
+    [["매입가 수정", "예상 판매가 수정"], ["재고 제외", "판매 취소"], ["뒤로"]],
   );
 
   const forSale = createInventoryFixture(database, "FOR_SALE");

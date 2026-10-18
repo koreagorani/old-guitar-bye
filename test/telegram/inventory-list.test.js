@@ -196,12 +196,12 @@ test("creates one open callback button per inventory item", async () => withData
   assert.deepEqual(telegram.messages[0].replyMarkup.inline_keyboard, [
     [{
       text: `${second.inventoryCode} Cort Earth70`,
-      callback_data: `inventory:open:${second.inventoryCode}`,
-    }],
-    [{
+      callback_data: `inventory:open:${second.inventoryCode}:p0`,
+    }, {
       text: `${first.inventoryCode} Yamaha F310`,
-      callback_data: `inventory:open:${first.inventoryCode}`,
+      callback_data: `inventory:open:${first.inventoryCode}:p0`,
     }],
+    [{text:"제외된 재고",callback_data:"inventory:archived:0"}],
   ]);
 }));
 
@@ -253,7 +253,8 @@ test("reports an empty current inventory list without an error", async () => wit
   const result = await listInventory(database, telegram);
 
   assert.deepEqual(result, { status: "empty" });
-  assert.deepEqual(telegram.messages, [{ chatId: 123, text: EMPTY_INVENTORY_MESSAGE }]);
+  assert.deepEqual(telegram.messages, [{chatId:123, text:EMPTY_INVENTORY_MESSAGE,
+    replyMarkup:{inline_keyboard:[[ {text:"제외된 재고",callback_data:"inventory:archived:0"} ]]}}]);
 }));
 
 test("keeps /inventory with an explicit code compatible", async () => withDatabase(async (database) => {
@@ -365,7 +366,7 @@ test("back-to-list callback handles an empty active inventory list", async () =>
 
   assert.deepEqual(result, { status: "listed", count: 0 });
   assert.equal(telegram.edits[0].text, EMPTY_INVENTORY_MESSAGE);
-  assert.deepEqual(telegram.edits[0].replyMarkup, { inline_keyboard: [] });
+  assert.deepEqual(telegram.edits[0].replyMarkup, { inline_keyboard: [[{text:"제외된 재고",callback_data:"inventory:archived:0"}]] });
 }));
 
 test("direct detail lookup can return to the list in the same message", async () => withDatabase(async (database) => {
