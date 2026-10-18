@@ -71,6 +71,7 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
         "003_add_sale_listing_to_sales.sql",
         "004_make_listing_location_nullable.sql",
         "005_add_opportunity_notifications.sql",
+        "006_add_opportunity_candidates.sql",
       ]);
       assert.deepEqual(applyMigrations(database), []);
     });
@@ -109,6 +110,7 @@ test("initial migration creates and constrains the MVP ledger", async (t) => {
         "expenses",
         "inventory_items",
         "listings",
+        "opportunity_candidates",
         "opportunity_notifications",
         "repair_logs",
         "sale_listings",

@@ -10,6 +10,7 @@ import {
   loadOpportunityTelegramConfig,
   notifyTrackOpportunities,
 } from "../../src/application/listings/opportunity-notifier.js";
+import { registerTrackCandidates } from "../../src/repositories/opportunity-candidate-repository.js";
 import {
   findOpportunityNotification,
   saveOpportunityNotification,
@@ -37,6 +38,11 @@ function track(overrides = {}) {
   };
 }
 
+function registered(database, opportunities) {
+  const insert = database.prepare("INSERT INTO listings (marketplace, external_listing_id, url, title, description, asking_price_krw, discovered_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  for (const item of opportunities) insert.run(item.marketplace, item.externalListingId, item.url, item.title, "", item.askingPriceKrw, "2026-10-17T11:00:00Z", "2026-10-17T11:00:00Z");
+  return registerTrackCandidates(database, opportunities).candidates;
+}
 async function withDatabase(callback) {
   const directory = mkdtempSync(join(tmpdir(), "opportunity-notifier-"));
   const database = openDatabase(join(directory, "test.sqlite"));
@@ -54,7 +60,7 @@ test("TRACK sends once then dedupes the repeated listing", async () =>
     const sent = [];
     const args = {
       database,
-      opportunities: [track()],
+      opportunities: registered(database, [track()]),
       chatId: "123",
       sendMessage: async (message) => sent.push(message),
       now: () => new Date("2026-10-17T12:00:00Z"),
@@ -79,7 +85,7 @@ test("two TRACK listings send two individual Telegram messages", async () =>
     const sent = [];
     const result = await notifyTrackOpportunities({
       database,
-      opportunities: [
+      opportunities: registered(database, [
         track({ externalListingId: "one" }),
         track({
           externalListingId: "two",
@@ -87,7 +93,7 @@ test("two TRACK listings send two individual Telegram messages", async () =>
           brand: "YAMAHA",
           model: "F310",
         }),
-      ],
+      ]),
       chatId: 123,
       sendMessage: async (message) => sent.push(message),
       now: () => new Date("2026-10-17T12:00:00Z"),
@@ -111,7 +117,7 @@ test("existing notification row skips Telegram send", async () =>
     let sends = 0;
     const result = await notifyTrackOpportunities({
       database,
-      opportunities: [opportunity],
+      opportunities: registered(database, [opportunity]),
       chatId: "123",
       sendMessage: async () => { sends += 1; },
     });

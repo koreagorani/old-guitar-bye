@@ -132,8 +132,9 @@ test("track results are included in journal-friendly log output", async () =>
     const lines = formatOpportunityMonitorLog(result);
     assert.match(lines[0], /^\[collector\] candidates=1 saved=1 skipped=0$/);
     assert.match(lines[1], /^\[evaluator\] track=1 /);
-    assert.equal(lines[2], "[notifier] sent=0 duplicate=0 failed=0");
-    assert.match(lines[3], /^TRACK YAMAHA F310 20,000 \/ 195,000 = 10\.26%/);
+    assert.match(lines[2], /^\[candidates\] created=1 /);
+    assert.equal(lines[3], "[notifier] sent=0 duplicate=0 failed=0");
+    assert.match(lines[4], /^TRACK YAMAHA F310 20,000 \/ 195,000 = 10\.26%/);
   }));
 
 test("collector failure exits the monitor at COLLECT stage", async () =>
@@ -251,7 +252,7 @@ test("monitor integrates notifier summary for TRACK opportunities", async () =>
       resolver: resolverAt(200000),
       notifier: {
         async notify(opportunities) {
-          notified.push(...opportunities.filter(({ decision }) => decision === "TRACK"));
+          notified.push(...opportunities.filter(({ status }) => status === "ACTIVE"));
           return {
             sent: 1,
             duplicate: 0,
@@ -271,7 +272,7 @@ test("monitor integrates notifier summary for TRACK opportunities", async () =>
       failures: [],
     });
     assert.equal(
-      formatOpportunityMonitorLog(result)[2],
+      formatOpportunityMonitorLog(result)[3],
       "[notifier] sent=1 duplicate=0 failed=0",
     );
   }));
