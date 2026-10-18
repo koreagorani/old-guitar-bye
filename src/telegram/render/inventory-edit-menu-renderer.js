@@ -32,6 +32,7 @@ export function renderInventoryEditMenu(
   if (hasExpenses) {
     primaryActions.push({ id: "edit_expense_record", label: "비용 기록 수정" });
   }
+  primaryActions.push({ id: "archive_confirm", label: "재고 제외" });
   if (inventoryState === "SOLD") {
     primaryActions.push({ ...CANCEL_SALE_ACTION });
   }

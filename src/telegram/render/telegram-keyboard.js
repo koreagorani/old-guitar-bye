@@ -4,19 +4,20 @@ function assertNonEmptyString(value, fieldName) {
   }
 }
 
-function toButton(action, inventoryCode) {
+function toButton(action, inventoryCode, listPage = null) {
   assertNonEmptyString(action.id, "action.id");
   assertNonEmptyString(action.label, "action.label");
 
   return {
     text: action.label,
     callback_data: action.id === "list"
-      ? "inventory:list"
-      : `inventory:${action.id}:${inventoryCode}`,
+      ? (listPage === null ? "inventory:list" : `inventory:list:${listPage}`)
+      : `inventory:${action.id}:${inventoryCode}${listPage === null ? "" : `:p${listPage}`}`,
   };
 }
 
-export function buildInventoryInlineKeyboard(actions, inventoryCode) {
+export function buildInventoryInlineKeyboard(actions, inventoryCode, { listPage = null } = {}) {
+  if (listPage !== null && (!Number.isSafeInteger(listPage) || listPage < 0)) throw new TypeError('Invalid listPage');
   if (actions === null || typeof actions !== "object" || Array.isArray(actions)) {
     throw new TypeError("actions must be an object");
   }
@@ -30,7 +31,7 @@ export function buildInventoryInlineKeyboard(actions, inventoryCode) {
   if (actions.primaryActions.length > 0) {
     for (let index = 0; index < actions.primaryActions.length; index += 2) {
       rows.push(actions.primaryActions.slice(index, index + 2).map(
-        (action) => toButton(action, inventoryCode),
+        (action) => toButton(action, inventoryCode, listPage),
       ));
     }
   }
@@ -45,11 +46,13 @@ export function buildInventoryInlineKeyboard(actions, inventoryCode) {
       rows.push(recordActions.map((action) => toButton(
         action,
         inventoryCode,
+        listPage,
       )));
     }
     rows.push(...navigationActions.map((action) => [toButton(
       action,
       inventoryCode,
+      listPage,
     )]));
   }
 

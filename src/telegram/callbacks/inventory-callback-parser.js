@@ -1,5 +1,12 @@
 const INVENTORY_ACTIONS = new Set([
   "open",
+  "open_archived",
+  "archive_confirm",
+  "archive_do",
+  "archive_cancel",
+  "restore_confirm",
+  "restore_do",
+  "restore_cancel",
   "repair",
   "expense",
   "sale",
@@ -18,18 +25,20 @@ const INVENTORY_ACTIONS = new Set([
   "add_expense",
 ]);
 
-const INVENTORY_CALLBACK_PATTERN = /^inventory:([a-z]+(?:_[a-z]+)*):(G-\d{4})$/;
+const INVENTORY_CALLBACK_PATTERN = /^inventory:([a-z]+(?:_[a-z]+)*):(G-\d{4})(?::p(0|[1-9]\d*))?$/;
 
 export function parseInventoryCallbackData(callbackData) {
   if (typeof callbackData !== "string") {
     throw new TypeError("callbackData must be a string");
   }
 
-  if (callbackData === "inventory:list") {
+  const list = /^inventory:(list|archived)(?::(0|[1-9]\\d*))?$/.exec(callbackData);
+  if (list) {
     return {
       entity: "inventory",
-      action: "list",
+      action: list[1],
       inventoryCode: null,
+      ...(list[2] === undefined ? {} : { page: Number(list[2]) }),
     };
   }
 
@@ -38,7 +47,7 @@ export function parseInventoryCallbackData(callbackData) {
     throw new TypeError("Invalid inventory callback data");
   }
 
-  const [, action, inventoryCode] = match;
+  const [, action, inventoryCode, rawPage] = match;
   if (!INVENTORY_ACTIONS.has(action)) {
     throw new Error(`Unsupported inventory action: ${action}`);
   }
@@ -47,5 +56,6 @@ export function parseInventoryCallbackData(callbackData) {
     entity: "inventory",
     action,
     inventoryCode,
+    ...(rawPage === undefined ? {} : { page: Number(rawPage) }),
   };
 }

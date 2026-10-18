@@ -16,7 +16,8 @@ const INVENTORY_COLUMNS = `
   expected_sale_price_krw AS expectedSalePriceKrw,
   note,
   created_at AS createdAt,
-  updated_at AS updatedAt
+  updated_at AS updatedAt,
+  archived_at AS archivedAt
 `;
 
 function assertPositiveId(value, fieldName) {
@@ -167,7 +168,7 @@ export function listActiveInventoryItems(database) {
   return database.prepare(`
     SELECT ${INVENTORY_COLUMNS}
     FROM inventory_items
-    WHERE state IN ('IN_STOCK', 'REPAIRING', 'FOR_SALE')
+    WHERE state IN ('IN_STOCK', 'REPAIRING', 'FOR_SALE') AND archived_at IS NULL
     ORDER BY id DESC
   `).all().map((row) => ({ ...row }));
 }
@@ -254,4 +255,51 @@ export function restoreSoldInventoryForSale(database, id) {
     );
   }
   return updateInventoryState(database, id, "FOR_SALE");
+}
+
+export function listArchivedInventoryItems(database) {
+  return database.prepare(`
+    SELECT ${INVENTORY_COLUMNS}
+    FROM inventory_items
+    WHERE archived_at IS NOT NULL
+    ORDER BY archived_at DESC, id DESC
+  `).all().map((row) => ({ ...row }));
+}
+
+// Archiving is independent of the inventory state machine. All FK-linked
+// acquisition, repair, expense, sale and inventory records remain untouched.
+export function archiveInventoryItem(database, id, now = () => new Date()) {
+  assertPositiveId(id, "id");
+  return withImmediateTransaction(database, () => {
+    const item = findInventoryItemById(database, id);
+    if (!item) return { status: "not_found", inventory: null };
+    if (item.archivedAt !== null) return { status: "already_archived", inventory: item };
+    const openListings = database.prepare(`
+      SELECT COUNT(*) AS count FROM sale_listings
+      WHERE inventory_item_id = ? AND closed_at IS NULL
+    `).get(id).count;
+    if (openListings > 0) return { status: "open_sale_listings", inventory: item };
+    const timestamp = now().toISOString();
+    database.prepare(`
+      UPDATE inventory_items
+      SET archived_at = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND archived_at IS NULL
+    `).run(timestamp, id);
+    return { status: "archived", inventory: findInventoryItemById(database, id) };
+  });
+}
+
+export function restoreArchivedInventoryItem(database, id) {
+  assertPositiveId(id, "id");
+  return withImmediateTransaction(database, () => {
+    const item = findInventoryItemById(database, id);
+    if (!item) return { status: "not_found", inventory: null };
+    if (item.archivedAt === null) return { status: "already_active", inventory: item };
+    database.prepare(`
+      UPDATE inventory_items
+      SET archived_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND archived_at IS NOT NULL
+    `).run(id);
+    return { status: "restored", inventory: findInventoryItemById(database, id) };
+  });
 }
