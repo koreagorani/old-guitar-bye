@@ -8,6 +8,7 @@ import { handleInventoryCallback } from "./callbacks/inventory-callback-handler.
 import {
   handlePendingSaleMessage,
   handleSaleMarketplaceCallback,
+  handleSaleConfirmationCallback,
 } from "./interactions/complete-sale-flow.js";
 import {
   handleExpenseMenuCallback,
@@ -141,7 +142,15 @@ export async function handleTelegramUpdate(
             answerCallback: acknowledge,
           });
         }
-        if (callbackQuery.data?.startsWith("sale:listing:")) {
+        if (callbackQuery.data?.startsWith("sale:confirm:") ||
+            callbackQuery.data?.startsWith("sale:cancel:")) {
+          return handleSaleConfirmationCallback({
+            database, callbackQuery, pendingInteractions, editMessage,
+            answerCallback: acknowledge, now,
+          });
+        }
+        if (callbackQuery.data?.startsWith("sale:listing:") ||
+            callbackQuery.data?.startsWith("sale:market:")) {
           return handleSaleMarketplaceCallback({
             database,
             callbackQuery,

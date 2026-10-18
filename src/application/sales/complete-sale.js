@@ -7,6 +7,7 @@ import {
 import {
   closeSaleListing,
   findSaleListingById,
+  listSaleListingsByInventoryItemId,
 } from "../../repositories/sale-listing-repository.js";
 import { createSale } from "../../repositories/sale-repository.js";
 
@@ -27,7 +28,12 @@ export function completeSale(database, data) {
       throw new Error(`Inventory item not found: ${inventoryItemId}`);
     }
 
-    transitionInventory(inventoryItem.state, "SOLD");
+    if (inventoryItem.state === "IN_STOCK") {
+      transitionInventory(inventoryItem.state, "FOR_SALE");
+    } else {
+      transitionInventory(inventoryItem.state, "SOLD");
+    }
+    if (inventoryItem.archivedAt !== null) throw new Error("Cannot sell archived inventory");
 
     let saleListing = null;
     if (saleListingId !== null) {
@@ -45,10 +51,16 @@ export function completeSale(database, data) {
       }
     }
 
+    if (inventoryItem.state === "IN_STOCK") {
+      updateInventoryState(database, inventoryItemId, "FOR_SALE");
+    }
     const sale = createSale(database, data);
     const closedSaleListing = saleListing === null
       ? null
       : closeSaleListing(database, saleListing.id, soldAt);
+    const otherClosedListings = listSaleListingsByInventoryItemId(database, inventoryItemId)
+      .filter((listing) => listing.closedAt === null && listing.id !== saleListingId)
+      .map((listing) => closeSaleListing(database, listing.id, soldAt));
     const soldInventoryItem = updateInventoryState(
       database,
       inventoryItemId,
@@ -58,6 +70,7 @@ export function completeSale(database, data) {
     return {
       sale,
       saleListing: closedSaleListing,
+      otherClosedListings,
       inventoryItem: soldInventoryItem,
     };
   });

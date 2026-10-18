@@ -17,7 +17,7 @@ import {
 } from "../render/inventory-list-renderer.js";
 import { renderArchivedInventoryDetail } from "../render/inventory-archive-renderer.js";
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
-import { beginCompleteSaleFlow } from "../interactions/complete-sale-flow.js";
+import { beginCompleteSaleFlow, handleSaleMenu } from "../interactions/complete-sale-flow.js";
 import {
   beginExpenseFlow,
   beginExpenseMenu,
@@ -290,6 +290,10 @@ export async function handleInventoryCallback({
     };
   }
 
+  if (action === "sale") {
+    return handleSaleMenu({ database, inventory, callbackQuery, editMessage, answerCallback, page });
+  }
+
   if (action === "complete_sale") {
     return beginCompleteSaleFlow({
       inventory,
@@ -297,6 +301,7 @@ export async function handleInventoryCallback({
       pendingInteractions,
       editMessage,
       answerCallback,
+      page,
     });
   }
 
