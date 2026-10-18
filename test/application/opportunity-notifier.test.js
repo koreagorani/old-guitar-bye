@@ -156,7 +156,7 @@ test("Telegram failure does not record and next cycle can retry", async () =>
     const opportunity = track();
     const failed = await notifyTrackOpportunities({
       database,
-      opportunities: [opportunity],
+      opportunities: registered(database, [opportunity]),
       chatId: "123",
       sendMessage: async () => {
         throw new Error("Telegram sendMessage failed: Too Many Requests");
@@ -171,7 +171,7 @@ test("Telegram failure does not record and next cycle can retry", async () =>
     let sends = 0;
     const retried = await notifyTrackOpportunities({
       database,
-      opportunities: [opportunity],
+      opportunities: registered(database, [opportunity]),
       chatId: "123",
       sendMessage: async () => { sends += 1; },
       now: () => new Date("2026-10-17T12:30:00Z"),
@@ -188,7 +188,7 @@ test("successful send is recorded with observed prices", async () =>
     const opportunity = track();
     await notifyTrackOpportunities({
       database,
-      opportunities: [opportunity],
+      opportunities: registered(database, [opportunity]),
       chatId: "123",
       sendMessage: async () => {},
       now: () => new Date("2026-10-17T12:00:00Z"),
