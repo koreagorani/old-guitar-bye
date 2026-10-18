@@ -32,7 +32,7 @@ export function parseInventoryCallbackData(callbackData) {
     throw new TypeError("callbackData must be a string");
   }
 
-  const list = /^inventory:(list|archived)(?::(0|[1-9]\\d*))?$/.exec(callbackData);
+  const list = /^inventory:(list|archived)(?::(0|[1-9]\d*))?$/.exec(callbackData);
   if (list) {
     return {
       entity: "inventory",

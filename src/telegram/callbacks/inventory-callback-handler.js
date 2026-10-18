@@ -3,6 +3,9 @@ import { cancelSale } from "../../application/sales/cancel-sale.js";
 import {
   findInventoryItemByCode,
   listActiveInventoryItems,
+  listArchivedInventoryItems,
+  archiveInventoryItem,
+  restoreArchivedInventoryItem,
   updateInventoryState,
 } from "../../repositories/inventory-repository.js";
 import { renderInventoryActions } from "../render/inventory-action-renderer.js";
@@ -12,6 +15,7 @@ import {
   EMPTY_INVENTORY_MESSAGE,
   renderInventoryList,
 } from "../render/inventory-list-renderer.js";
+import { renderArchivedInventoryDetail } from "../render/inventory-archive-renderer.js";
 import { buildInventoryInlineKeyboard } from "../render/telegram-keyboard.js";
 import { beginCompleteSaleFlow } from "../interactions/complete-sale-flow.js";
 import {
@@ -77,19 +81,22 @@ export async function handleInventoryCallback({
   }
 
   const { action, inventoryCode } = parsed;
-  if (action === "list") {
-    const inventoryItems = listActiveInventoryItems(database);
-    const rendered = inventoryItems.length === 0
-      ? {
-        text: EMPTY_INVENTORY_MESSAGE,
-        replyMarkup: { inline_keyboard: [] },
-      }
-      : renderInventoryList(inventoryItems);
-    await editMessage({
-      chatId: callbackQuery.message.chat.id,
-      messageId: callbackQuery.message.message_id,
-      ...rendered,
+  const page = parsed.page ?? null;
+  const chatId = callbackQuery.message.chat.id;
+  const messageId = callbackQuery.message.message_id;
+  const callbackSuffix = page === null ? "" : `:p${page}`;
+  if (action === "list" || action === "archived") {
+    const archived = action === "archived";
+    const inventoryItems = archived
+      ? listArchivedInventoryItems(database) : listActiveInventoryItems(database);
+    const rendered = renderInventoryList(inventoryItems, {
+      page: page ?? 0, archived,
     });
+    // Legacy empty-list callbacks remain compatible.
+    if (!archived && inventoryItems.length === 0 && page === null) {
+      rendered.replyMarkup = { inline_keyboard: [] };
+    }
+    await editMessage({ chatId, messageId, ...rendered });
     await acknowledge(answerCallback, callbackQuery.id, null);
     return { status: "listed", count: inventoryItems.length };
   }
@@ -104,6 +111,86 @@ export async function handleInventoryCallback({
     return { status: "not_found", inventoryCode };
   }
 
+  // Archive and restore are independent from IN_STOCK/REPAIRING/FOR_SALE/SOLD.
+  const archiveActions = new Set(["archive_confirm", "archive_do", "archive_cancel",
+    "restore_confirm", "restore_do", "restore_cancel"]);
+  if (inventory.archivedAt !== null && !["open", "open_archived", ...archiveActions].includes(action)) {
+    await editMessage({ chatId, messageId,
+      ...renderArchivedInventoryDetail(getInventoryDetail(database, inventory.id), page) });
+    await acknowledge(answerCallback, callbackQuery.id, "제외된 재고는 먼저 복원해주세요.");
+    return { status: "archived" };
+  }
+
+  if (action === "open_archived" || (action === "open" && inventory.archivedAt !== null)) {
+    await editMessage({ chatId, messageId,
+      ...renderArchivedInventoryDetail(getInventoryDetail(database, inventory.id), page) });
+    await acknowledge(answerCallback, callbackQuery.id, null);
+    return { status: "opened", action, inventoryItemId: inventory.id };
+  }
+
+  if (archiveActions.has(action)) {
+    const isRestore = action.startsWith("restore_");
+    const pendingType = isRestore ? "inventory_restore" : "inventory_archive";
+    if (action.endsWith("_confirm")) {
+      if ((isRestore && inventory.archivedAt === null)
+        || (!isRestore && inventory.archivedAt !== null)) {
+        await acknowledge(answerCallback, callbackQuery.id, "이미 처리된 재고입니다.");
+        return { status: "invalid_state" };
+      }
+      pendingInteractions?.set(chatId, {
+        type: pendingType, inventoryId: inventory.id, mainMessageId: messageId,
+      });
+      const title = isRestore ? "재고 복원" : "재고 제외";
+      const warning = isRestore ? "기존 ID와 기록을 유지하며 복원합니다." :
+        "일반 재고 목록에서만 숨깁니다. 매입·수리·비용·판매 기록은 삭제되지 않습니다.";
+      await editMessage({chatId, messageId,
+        text: `${title} 확인\n\n${inventory.inventoryCode} · ${inventory.brand} ${inventory.modelName}\n\n${warning}\n\n진행할까요?`,
+        replyMarkup:{inline_keyboard:[
+          [{text:isRestore ? "복원 확인" : "제외 확인",
+            callback_data:`inventory:${isRestore ? "restore_do" : "archive_do"}:${inventoryCode}${callbackSuffix}`}],
+          [{text:"취소",callback_data:`inventory:${isRestore ? "restore_cancel" : "archive_cancel"}:${inventoryCode}${callbackSuffix}`}],
+        ]},
+      });
+      await acknowledge(answerCallback, callbackQuery.id, null);
+      return {status:"awaiting_confirmation"};
+    }
+    if (action.endsWith("_cancel")) {
+      pendingInteractions?.delete(chatId);
+      const detail=getInventoryDetail(database,inventory.id);
+      await editMessage({chatId,messageId,...(isRestore
+        ? renderArchivedInventoryDetail(detail,page)
+        : {text:renderInventoryDetail(detail),
+          replyMarkup:buildInventoryInlineKeyboard(renderInventoryActions(inventory.state),
+            inventoryCode,{listPage:page})})});
+      await acknowledge(answerCallback,callbackQuery.id,null);
+      return {status:"cancelled"};
+    }
+    const pending=pendingInteractions?.get(chatId);
+    if (pending?.type !== pendingType || pending.inventoryId !== inventory.id
+      || pending.mainMessageId !== messageId) {
+      await acknowledge(answerCallback,callbackQuery.id,"확인 화면에서 다시 진행해주세요.");
+      return {status:"invalid_confirmation"};
+    }
+    pendingInteractions.delete(chatId);
+    const outcome = isRestore
+      ? restoreArchivedInventoryItem(database,inventory.id)
+      : archiveInventoryItem(database,inventory.id);
+    if (outcome.status === "open_sale_listings") {
+      await editMessage({chatId,messageId,
+        text:"진행 중인 판매글이 있어 재고를 제외할 수 없습니다. 판매글을 먼저 종료해주세요.",
+        replyMarkup:{inline_keyboard:[[{text:"목록",callback_data:`inventory:list:${page ?? 0}`}]]}});
+    } else {
+      const detail=getInventoryDetail(database,inventory.id);
+      await editMessage({chatId,messageId,...(isRestore
+        ? {text:renderInventoryDetail(detail),
+          replyMarkup:buildInventoryInlineKeyboard(renderInventoryActions(detail.inventory.state),
+            inventoryCode,{listPage:page})}
+        : renderArchivedInventoryDetail(detail,page))});
+    }
+    await acknowledge(answerCallback,callbackQuery.id,null);
+    return {status:outcome.status};
+  }
+
   if (action === "edit") {
     await editMessage({
       chatId: callbackQuery.message.chat.id,
@@ -115,6 +202,7 @@ export async function handleInventoryCallback({
           hasExpenses: getInventoryDetail(database, inventory.id).expenses.length > 0,
         }),
         inventory.inventoryCode,
+        { listPage: page },
       ),
     });
     await acknowledge(answerCallback, callbackQuery.id, null);
@@ -191,6 +279,7 @@ export async function handleInventoryCallback({
       replyMarkup: buildInventoryInlineKeyboard(
         renderInventoryActions(detail.inventory.state),
         inventoryCode,
+        { listPage: page },
       ),
     });
     await acknowledge(

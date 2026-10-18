@@ -3,6 +3,7 @@ import {
   findInventoryItemByCode,
   listActiveInventoryItems,
 } from "../../repositories/inventory-repository.js";
+import { renderArchivedInventoryDetail } from "../render/inventory-archive-renderer.js";
 import { renderInventoryActions } from "../render/inventory-action-renderer.js";
 import { renderInventoryDetail } from "../render/inventory-detail-renderer.js";
 import {
@@ -61,10 +62,13 @@ export async function handleInventoryCommand({
   }
 
   const detail = getInventoryDetail(database, inventory.id);
-  const text = renderInventoryDetail(detail);
-  const actions = renderInventoryActions(detail.inventory.state);
-  const replyMarkup = buildInventoryInlineKeyboard(actions, inventoryCode);
-
-  await sendMessage({ chatId, text, replyMarkup });
+  if (detail.inventory.archivedAt !== null) {
+    await sendMessage({chatId,...renderArchivedInventoryDetail(detail)});
+  } else {
+    const text = renderInventoryDetail(detail);
+    const actions = renderInventoryActions(detail.inventory.state);
+    const replyMarkup = buildInventoryInlineKeyboard(actions, inventoryCode);
+    await sendMessage({ chatId, text, replyMarkup });
+  }
   return { status: "found", inventoryItemId: inventory.id };
 }
