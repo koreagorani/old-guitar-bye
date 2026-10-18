@@ -1,6 +1,7 @@
 import {
   evaluateBunjangOpportunities,
 } from "./evaluate-bunjang-opportunities.js";
+import { registerTrackCandidates } from "../../repositories/opportunity-candidate-repository.js";
 import { listListingsByMarketplace } from "../../repositories/listing-repository.js";
 import {
   collectBunjangListingCandidates,
@@ -115,6 +116,13 @@ export async function runBunjangOpportunityMonitor({
     throw new OpportunityMonitorError("EVALUATE", error);
   }
 
+  let candidateSummary;
+  try {
+    candidateSummary = registerTrackCandidates(database, evaluation.track, { now: runNow });
+  } catch (error) {
+    throw new OpportunityMonitorError("CANDIDATES", error);
+  }
+
   let notifierSummary = {
     sent: 0,
     duplicate: 0,
@@ -126,7 +134,7 @@ export async function runBunjangOpportunityMonitor({
       throw new TypeError("notifier.notify must be a function");
     }
     try {
-      notifierSummary = await notifier.notify(evaluation.results);
+      notifierSummary = await notifier.notify(candidateSummary.candidates);
     } catch (error) {
       throw new OpportunityMonitorError("NOTIFY", error);
     }
@@ -141,6 +149,7 @@ export async function runBunjangOpportunityMonitor({
       sourceCount: collected.sources.length,
     },
     evaluator: evaluation,
+    candidates: candidateSummary,
     notifier: notifierSummary,
   };
 }
@@ -153,6 +162,7 @@ export function formatOpportunityMonitorLog(result) {
   const lines = [
     `[collector] candidates=${result.collector.candidateCount} saved=${result.collector.savedCount} skipped=${result.collector.skippedCount}`,
     `[evaluator] track=${result.evaluator.summary.track} ignore=${result.evaluator.summary.ignore} unresolvedIdentity=${result.evaluator.summary.identityUnresolved} unresolvedReference=${result.evaluator.summary.referenceUnresolved} irrelevant=${result.evaluator.summary.irrelevant}`,
+    `[candidates] created=${result.candidates?.created ?? 0} existing=${result.candidates?.existing ?? 0} suppressed=${result.candidates?.suppressed ?? 0}`,
     `[notifier] sent=${result.notifier?.sent ?? 0} duplicate=${result.notifier?.duplicate ?? 0} failed=${result.notifier?.failed ?? 0}`,
   ];
 

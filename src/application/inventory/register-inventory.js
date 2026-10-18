@@ -6,7 +6,7 @@ import {
 import { createInventoryItem } from "../../repositories/inventory-repository.js";
 import { saveOrUpdateListing } from "../../repositories/listing-repository.js";
 
-function nextInventoryCode(database) {
+export function nextInventoryCode(database) {
   const usedNumbers = database.prepare(`
     SELECT inventory_code AS inventoryCode
     FROM inventory_items

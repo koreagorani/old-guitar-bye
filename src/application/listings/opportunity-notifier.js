@@ -3,7 +3,7 @@ import {
   saveOpportunityNotification,
 } from "../../repositories/opportunity-notification-repository.js";
 import { normalizeTelegramChatId } from "../../telegram/telegram-access.js";
-import { OPPORTUNITY_DECISION } from "./evaluate-bunjang-opportunities.js";
+import { findCandidateById } from "../../repositories/opportunity-candidate-repository.js";
 
 function assertNonEmptyString(value, fieldName) {
   if (typeof value !== "string" || value.trim() === "") {
@@ -62,6 +62,8 @@ export function formatOpportunityTelegramMessage(opportunity) {
     "",
     "번개장터:",
     opportunity.url,
+    "",
+    "후보 목록: /candidates",
   ].join("\n");
 }
 
@@ -100,9 +102,8 @@ export async function notifyTrackOpportunities({
   };
 
   for (const opportunity of opportunities) {
-    if (opportunity?.decision !== OPPORTUNITY_DECISION.TRACK) {
-      continue;
-    }
+    if (opportunity?.status !== "ACTIVE" || !opportunity.id) continue;
+    if (findCandidateById(database, opportunity.id)?.status !== "ACTIVE") continue;
 
     const marketplace = opportunity.marketplace ?? "BUNJANG";
     const existing = findOpportunityNotification(
@@ -119,6 +120,13 @@ export async function notifyTrackOpportunities({
       await sendMessage({
         chatId: normalizedChatId,
         text: formatOpportunityTelegramMessage(opportunity),
+        replyMarkup: { inline_keyboard: [
+          [
+            { text: "매입 확정", callback_data: `cand:buy:${opportunity.id}:0` },
+            { text: "후보 제외", callback_data: `cand:exclude:${opportunity.id}:0` },
+          ],
+          [{ text: "매물 보기", url: opportunity.url }],
+        ] },
       });
     } catch (error) {
       summary.failed += 1;
