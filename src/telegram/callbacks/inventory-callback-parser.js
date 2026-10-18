@@ -34,6 +34,9 @@ export function parseInventoryCallbackData(callbackData) {
 
   const list = /^inventory:(list|archived)(?::(0|[1-9]\d*))?$/.exec(callbackData);
   if (list) {
+    if (list[2] !== undefined && !Number.isSafeInteger(Number(list[2]))) {
+      throw new TypeError("Invalid inventory callback page");
+    }
     return {
       entity: "inventory",
       action: list[1],
@@ -48,6 +51,9 @@ export function parseInventoryCallbackData(callbackData) {
   }
 
   const [, action, inventoryCode, rawPage] = match;
+  if (rawPage !== undefined && !Number.isSafeInteger(Number(rawPage))) {
+    throw new TypeError("Invalid inventory callback page");
+  }
   if (!INVENTORY_ACTIONS.has(action)) {
     throw new Error(`Unsupported inventory action: ${action}`);
   }

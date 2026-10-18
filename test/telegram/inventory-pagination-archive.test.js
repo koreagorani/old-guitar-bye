@@ -197,3 +197,18 @@ test("archive screens and pagination reject unauthorized chat",async () =>
     assert.equal(rec.edits.length,0);
     assert.equal(findInventoryItemById(db,item.id).archivedAt,null);
   }));
+
+test("out-of-range callback page is clamped, unsafe page is rejected", () => {
+  assert.deepEqual(parseInventoryCallbackData("inventory:list:99"), {
+    entity:"inventory", action:"list", inventoryCode:null, page:99,
+  });
+  assert.equal(renderInventoryList([makeItem(0)],{page:99}).text.includes("1/1 페이지"),true);
+  assert.throws(
+    () => parseInventoryCallbackData("inventory:list:99999999999999999999999"),
+    /Invalid inventory callback page/,
+  );
+  assert.throws(
+    () => parseInventoryCallbackData("inventory:open:G-0001:p99999999999999999999999"),
+    /Invalid inventory callback page/,
+  );
+});
