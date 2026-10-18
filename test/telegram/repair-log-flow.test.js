@@ -562,7 +562,7 @@ test("does not consume a pending complete-sale interaction", async () => withDat
 
   const result = await enter(database, "75000", telegram, pending);
 
-  assert.equal(result.status, "sale_completed");
+  assert.equal(result.status, "awaiting_sale_marketplace");
   assert.equal(findInventoryItemByCode(database, inventory.inventoryCode).state, "SOLD");
   assert.deepEqual(listRepairLogsByInventoryItemId(database, inventory.id), []);
 }));

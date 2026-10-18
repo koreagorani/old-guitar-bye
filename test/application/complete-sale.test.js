@@ -187,7 +187,7 @@ test("completes a direct sale without a sale listing", () => withDatabase((datab
   assert.equal(result.inventoryItem.state, "SOLD");
 }));
 
-for (const state of ["IN_STOCK", "REPAIRING"]) {
+for (const state of ["REPAIRING"]) {
   test(`rejects completing a sale from ${state}`, () => withDatabase((database) => {
     const inventoryItem = createInventoryFixture(database, state);
     assert.throws(
@@ -298,4 +298,20 @@ test("rejects completing a second sale for the same inventory item", () => withD
     new Error("Invalid inventory transition: SOLD -> SOLD"),
   );
   assert.ok(findSaleByInventoryItemId(database, inventoryItem.id));
+}));
+
+test("IN_STOCK sale transitions through FOR_SALE within transaction",()=>withDatabase(database=>{
+  const item=createInventoryFixture(database,"IN_STOCK");
+  const result=completeSale(database,completeSaleData(item.id));
+  assert.equal(result.inventoryItem.state,"SOLD");
+  assert.equal(findSaleByInventoryItemId(database,item.id).salePriceKrw,85000);
+}));
+test("completing sale closes all open listings",()=>withDatabase(database=>{
+  const item=createInventoryFixture(database);
+  const first=createSaleListingFixture(database,item.id);
+  const second=createSaleListing(database,{inventoryItemId:item.id,marketplace:"bunjang",askingPriceKrw:88000,listedAt:"2026-09-15T10:00:00Z"});
+  const result=completeSale(database,completeSaleData(item.id,first.id));
+  assert.equal(result.sale.saleListingId,first.id);
+  assert.equal(findSaleListingById(database,second.id).closedAt,"2026-09-20T12:00:00Z");
+  assert.equal(result.otherClosedListings.length,1);
 }));
