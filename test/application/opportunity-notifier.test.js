@@ -10,7 +10,7 @@ import {
   loadOpportunityTelegramConfig,
   notifyTrackOpportunities,
 } from "../../src/application/listings/opportunity-notifier.js";
-import { registerTrackCandidates } from "../../src/repositories/opportunity-candidate-repository.js";
+import { registerTrackCandidates, findCandidateByListing } from "../../src/repositories/opportunity-candidate-repository.js";
 import {
   findOpportunityNotification,
   saveOpportunityNotification,
@@ -171,7 +171,7 @@ test("Telegram failure does not record and next cycle can retry", async () =>
     let sends = 0;
     const retried = await notifyTrackOpportunities({
       database,
-      opportunities: registered(database, [opportunity]),
+      opportunities: [findCandidateByListing(database, "BUNJANG", opportunity.externalListingId)],
       chatId: "123",
       sendMessage: async () => { sends += 1; },
       now: () => new Date("2026-10-17T12:30:00Z"),
