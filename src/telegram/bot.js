@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
 import { handleCandidatesCommand, handleCandidateCallback, handlePendingCandidatePurchase } from "./interactions/candidate-flow.js";
+import { handleSalesCommand, handleSalesCallback } from "./interactions/sales-query-flow.js";
 import { handleInventoryCommand } from "./commands/inventory-command.js";
 import { handleInventoryCallback } from "./callbacks/inventory-callback-handler.js";
 import {
@@ -60,6 +61,9 @@ export const HELP_MESSAGE = [
   "/candidates",
   "매입 후보 목록",
   "",
+  "/sales",
+  "판매 완료 내역 조회",
+  "",
   "/help",
   "사용 방법 보기",
 ].join("\n");
@@ -69,6 +73,7 @@ export const TELEGRAM_COMMANDS = Object.freeze([
   Object.freeze({ command: "inventory", description: "현재 재고 목록 조회" }),
   Object.freeze({ command: "add", description: "새 기타 등록" }),
   Object.freeze({ command: "candidates", description: "매입 후보 목록" }),
+  Object.freeze({ command: "sales", description: "판매 완료 내역" }),
   Object.freeze({ command: "help", description: "사용 가능한 기능 안내" }),
 ]);
 
@@ -131,6 +136,9 @@ export async function handleTelegramUpdate(
       callbackQuery,
       answerCallback,
       (acknowledge) => {
+        if (callbackQuery.data?.startsWith("sales:")) {
+          return handleSalesCallback({database,callbackQuery,editMessage,answerCallback:acknowledge});
+        }
         if (callbackQuery.data?.startsWith("cand:")) {
           return handleCandidateCallback({ database, callbackQuery, pendingInteractions, editMessage, answerCallback:acknowledge });
         }
@@ -314,6 +322,7 @@ export async function handleTelegramUpdate(
       sendMessage,
     });
   }
+  if (name === "/sales") return handleSalesCommand({database,chatId:message.chat.id,sendMessage});
   if (name === "/candidates") return handleCandidatesCommand({database,chatId:message.chat.id,sendMessage});
   if (name === "/add") {
     return beginAddInventoryFlow({

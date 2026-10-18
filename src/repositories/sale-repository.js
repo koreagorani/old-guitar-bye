@@ -128,3 +128,44 @@ export function findSaleByInventoryItemId(database, inventoryItemId) {
     WHERE inventory_item_id = ?
   `).get(inventoryItemId));
 }
+
+const SALE_VIEW_SQL = `
+  SELECT s.id AS saleId, s.inventory_item_id AS inventoryItemId,
+    s.marketplace, s.sale_price_krw AS salePriceKrw, s.sold_at AS soldAt,
+    i.inventory_code AS inventoryCode, i.brand, i.model_name AS modelName,
+    i.archived_at AS archivedAt
+  FROM sales s
+  JOIN inventory_items i ON i.id = s.inventory_item_id
+  WHERE i.state = 'SOLD'
+`;
+
+export function countValidSales(database) {
+  return database.prepare(`
+    SELECT COUNT(*) AS total
+    FROM sales s
+    JOIN inventory_items i ON i.id = s.inventory_item_id
+    WHERE i.state = 'SOLD'
+  `).get().total;
+}
+
+export function listValidSalesPage(database, { page = 0, pageSize = 5 } = {}) {
+  if (!Number.isSafeInteger(page) || page < 0 ||
+      !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 20) {
+    throw new TypeError("Invalid sales page");
+  }
+  const total = countValidSales(database);
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, pages - 1);
+  const rows = database.prepare(`
+    ${SALE_VIEW_SQL}
+    ORDER BY s.sold_at DESC, s.id DESC
+    LIMIT ? OFFSET ?
+  `).all(pageSize, currentPage * pageSize).map(row => ({ ...row }));
+  return { rows, total, page: currentPage, pages, pageSize };
+}
+
+export function findValidSaleById(database, saleId) {
+  if (!Number.isSafeInteger(saleId) || saleId <= 0) return null;
+  const row = database.prepare(`${SALE_VIEW_SQL} AND s.id = ?`).get(saleId);
+  return row ? { ...row } : null;
+}
