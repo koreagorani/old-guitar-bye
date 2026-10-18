@@ -67,6 +67,13 @@ export function registerTrackCandidates(database, opportunities, { now = () => n
         } else results.suppressed += 1;
         continue;
       }
+      const existingAcquisition = database.prepare(
+        "SELECT status FROM acquisitions WHERE listing_id = ?"
+      ).get(listing.id);
+      if (existingAcquisition && existingAcquisition.status !== "FOUND") {
+        results.suppressed += 1;
+        continue;
+      }
       if (!opportunity.brand || !opportunity.model
         || !["HIGH", "MEDIUM"].includes(opportunity.identityConfidence)
         || !Number.isSafeInteger(opportunity.referenceNewPriceKrw)
