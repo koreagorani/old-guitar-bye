@@ -371,7 +371,7 @@ export async function handleInventoryCallback({
   const detail = getInventoryDetail(database, currentInventory.id);
   const text = renderInventoryDetail(detail);
   const actions = renderInventoryActions(detail.inventory.state);
-  const replyMarkup = buildInventoryInlineKeyboard(actions, inventoryCode);
+  const replyMarkup = buildInventoryInlineKeyboard(actions, inventoryCode, { listPage: page });
 
   await editMessage({
     chatId: callbackQuery.message.chat.id,

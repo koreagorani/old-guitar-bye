@@ -119,9 +119,9 @@ test("archive requires confirmation, preserves repair/expenses/sales/price, and 
     let item = createItem(db);
     const original = { ...item };
     db.prepare("INSERT INTO repair_logs (inventory_item_id,type,cost_krw,performed_at) VALUES (?,?,?,?)")
-      .run(item.id, "setup", 9000, "2026-10-18T08:00:00Z");
+      .run(item.id, "OTHER", 9000, "2026-10-18T08:00:00Z");
     db.prepare("INSERT INTO expenses (inventory_item_id,category,amount_krw,occurred_at) VALUES (?,?,?,?)")
-      .run(item.id, "shipping", 3000, "2026-10-18T08:30:00Z");
+      .run(item.id, "LOGISTICS", 3000, "2026-10-18T08:30:00Z");
 
     item = updateInventoryState(db,item.id,"FOR_SALE");
     item = updateInventoryState(db,item.id,"SOLD");
