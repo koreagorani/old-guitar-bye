@@ -36,9 +36,9 @@ export function renderInventoryList(inventoryItems, { page = 0, archived = false
     navigation.push({ text: "다음 ▶", callback_data: `inventory:${kind}:${current + 1}` });
   }
   if (navigation.length > 0) inlineKeyboard.push(navigation);
-  inlineKeyboard.push([archived ?
-    { text: "현재 재고", callback_data: "inventory:list:0" } :
-    { text: "제외된 재고", callback_data: "inventory:archived:0" }]);
+  if (archived) {
+    inlineKeyboard.push([{ text: "현재 재고", callback_data: "inventory:list:0" }]);
+  }
 
   return {
     text: total === 0

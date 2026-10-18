@@ -25,6 +25,8 @@ for (const size of [0, 1, 5, 6, 20, 50]) {
   test(`inventory pagination boundaries for ${size} items`, () => {
     const items = Array.from({ length: size }, (_, i) => makeItem(i));
     const first = renderInventoryList(items);
+    assert.equal(callbacks(first.replyMarkup).some((button) =>
+      button.callback_data === "inventory:archived:0" || button.text === "제외된 재고"), false);
     const count = (first.text.match(/G-\d{4} ·/g) ?? []).length;
     assert.equal(count, Math.min(5, size));
     assert.equal(first.replyMarkup.inline_keyboard
@@ -148,9 +150,9 @@ test("archive requires confirmation, preserves repair/expenses/sales/price, and 
     assert.equal(db.prepare("SELECT COUNT(*) n FROM sales WHERE inventory_item_id = ?").get(item.id).n,1);
     const duplicate = await handleTelegramUpdate(button(archiveDo),telegram.deps);
     assert.notEqual(duplicate.status,"archived");
-    // Explicit archive list must be reachable even when active list is empty.
+    // The archive list callback remains supported internally but is not shown on /inventory.
     await handleTelegramUpdate(command("/inventory"), telegram.deps);
-    assert.equal(telegram.messages.at(-1).replyMarkup.inline_keyboard[0][0].text,"제외된 재고");
+    assert.deepEqual(telegram.messages.at(-1).replyMarkup.inline_keyboard, []);
     await handleTelegramUpdate(button("inventory:archived:0"), telegram.deps);
     const archiveOpen = telegram.edits.at(-1).replyMarkup.inline_keyboard
       .flat().find((x) => x.callback_data?.startsWith("inventory:open_archived:"));
