@@ -21,7 +21,7 @@ async function withDb(fn) {
 function make(db,{date="2026-10-18T09:00:00Z",price=65000}={}) {
   serial+=1;
   let item=registerInventory(db,{brand:"Yamaha",modelName:`F${serial}`,
-    guitarType:"ACOUSTIC",purchasePriceKrw:40000,receivedAt:"2026-10-15T00:00:00Z"});
+    guitarType:"ACOUSTIC",purchasePriceKrw:40000,registeredAt:"2026-10-15T00:00:00Z",expectedSalePriceKrw:null});
   item=updateInventoryState(db,item.id,"FOR_SALE");
   const sale=completeSale(db,{inventoryItemId:item.id,salePriceKrw:price,
     soldAt:date,marketplace:"bunjang"});
