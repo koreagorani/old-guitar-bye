@@ -42,11 +42,11 @@ const TYPE_RULES = Object.freeze([
 const ACCESSORY_RULES = Object.freeze([
   {
     reason: "ACCESSORY_ONLY_CASE",
-    pattern: /(?:소프트\s*케이스|하드\s*케이스|기타\s*(?:용\s*)?케이스|guitar\s*case)/i,
+    pattern: /(?:소프트\s*케이스|하드\s*케이스|기타\s*(?:용\s*)?케이스|guitar\s*case|(?:^|[+(])\s*케이스(?=$|[\s+)]))/i,
   },
   {
     reason: "ACCESSORY_ONLY_BAG",
-    pattern: /(?:긱\s*백|gig\s*bag|기타\s*(?:용\s*)?(?:가방|백)|guitar\s*bag)/i,
+    pattern: /(?:긱\s*백|소프트\s*백|gig\s*bag|기타\s*(?:용\s*)?(?:가방|백)(?![가-힣])|guitar\s*bag|(?:^|[+(])\s*가방(?=$|[\s+)]))/i,
   },
   {
     reason: "ACCESSORY_ONLY_STRAP",
@@ -139,7 +139,9 @@ const BUYER_INTENT_RULES = Object.freeze([
   },
 ]);
 
-const BUNDLE_PATTERN = /(?:\+|포함|함께|같이|세트|본체\s*(?:와|및|\+))/i;
+const BUNDLE_SEPARATOR = /[+\[\(]|\s+(?:및|와|과)\s+|본체\s*(?:와|및)/;
+const INCLUDED_ACCESSORY = /(?:가방|케이스|소프트\s*백|앰프|스트랩|스탠드|카포)\s*(?:도\s*)?(?:포함(?!\s*(?:안|아님|하지\s*않))|함께|같이)/;
+const ACCESSORY_ONLY_SIGNAL = /(?:단품|본체\s*(?:미포함|없음|제외)|기타\s*(?:없이|미포함|없음|제외)|전용\s*(?:케이스|소프트\s*백|가방|앰프))/;
 const STRONG_BODY_PATTERN = /(?:통\s*기타|어쿠스틱\s*기타|클래식\s*기타|일렉(?:트릭)?\s*기타|베이스\s*기타|\b(?:acoustic|classical|electric|bass)\s+guitar\b)/i;
 const GENERIC_GUITAR_NOUN_PATTERN = /(?:^|\s|[+(/])기타(?:$|\s|[+),/])/i;
 const DESCRIPTION_BODY_PATTERN = /(?:기타\s*본체|본체\s*(?:판매|팝니다|포함)|(?:통\s*기타|어쿠스틱\s*기타|클래식\s*기타|일렉\s*기타|베이스\s*기타).*(?:판매|팝니다|양도))/i;
@@ -182,6 +184,23 @@ function findAccessoryReasons(title) {
   return findReasons(title, ACCESSORY_RULES);
 }
 
+function hasSeparateBody(title) {
+  const parts = title.split(BUNDLE_SEPARATOR);
+  if (parts.length > 1 && parts.some((part) =>
+    findAccessoryReasons(part).length === 0
+    && (STRONG_BODY_PATTERN.test(part) || GENERIC_GUITAR_NOUN_PATTERN.test(part)
+      || (titleHasKnownBrand(part) && MODEL_LIKE_PATTERN.test(part)))
+  )) return true;
+
+  const included = INCLUDED_ACCESSORY.exec(title);
+  if (!included) return false;
+  const body = title.slice(0, included.index);
+  return findAccessoryReasons(body).length === 0 && (
+    STRONG_BODY_PATTERN.test(body)
+    || (titleHasKnownBrand(body) && MODEL_LIKE_PATTERN.test(body))
+  );
+}
+
 function titleHasKnownBrand(title) {
   return Object.values(GUITAR_BRAND_ALIASES)
     .flat()
@@ -221,8 +240,8 @@ export function classifyListingRelevance({
   const titleHasGenericGuitar = GENERIC_GUITAR_NOUN_PATTERN.test(normalizedTitle);
   const titleHasSpecificIdentity = titleHasKnownBrand(normalizedTitle)
     && MODEL_LIKE_PATTERN.test(normalizedTitle);
-  const descriptionHasBody = DESCRIPTION_BODY_PATTERN.test(normalizedDescription);
-  const hasBundleContext = BUNDLE_PATTERN.test(normalizedTitle);
+  const descriptionHasBody = !ACCESSORY_ONLY_SIGNAL.test(normalizedDescription)
+    && DESCRIPTION_BODY_PATTERN.test(normalizedDescription);
 
   const otherContextReasons = findReasons(
     normalizedTitle,
@@ -247,8 +266,8 @@ export function classifyListingRelevance({
   );
   if (nonInstrumentReasons.length > 0) {
     const protectedBodyBundle = titleHasStrongBody
-      && hasBundleContext
-      && accessoryReasons.length > 0;
+      && accessoryReasons.length > 0
+      && hasSeparateBody(normalizedTitle);
     if (!protectedBodyBundle) {
       reasons.push(...nonInstrumentReasons);
       return {
@@ -260,7 +279,9 @@ export function classifyListingRelevance({
   }
 
   if (accessoryReasons.length > 0) {
-    if ((titleHasStrongBody || titleHasSpecificIdentity || titleHasGenericGuitar) && hasBundleContext) {
+    const explicitlyAccessoryOnly = ACCESSORY_ONLY_SIGNAL.test(normalizedTitle);
+    if (!explicitlyAccessoryOnly && !ACCESSORY_ONLY_SIGNAL.test(normalizedDescription)
+      && hasSeparateBody(normalizedTitle)) {
       reasons.push("BODY_WITH_INCLUDED_ACCESSORY");
       return {
         relevance: LISTING_RELEVANCE.RELEVANT,
@@ -269,8 +290,11 @@ export function classifyListingRelevance({
       };
     }
 
-    if (descriptionHasBody) {
-      reasons.push(...accessoryReasons, "DESCRIPTION_BODY_CONTEXT");
+    if (descriptionHasBody || (!explicitlyAccessoryOnly && ((titleHasStrongBody && titleHasSpecificIdentity)
+      || hasSeparateBody(normalizedTitle)))) {
+      reasons.push(...accessoryReasons, descriptionHasBody
+        ? "DESCRIPTION_BODY_CONTEXT"
+        : "ACCESSORY_TITLE_WITH_GUITAR_IDENTITY");
       return {
         relevance: LISTING_RELEVANCE.UNCERTAIN,
         guitarType,

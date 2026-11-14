@@ -156,3 +156,9 @@ test("calculateUsedToNewRatio rejects invalid threshold", () => {
     /thresholdPct/,
   );
 });
+
+test("an ambiguous case or bag offer cannot set a new-guitar reference price", () => {
+  const result = candidate({ productTitle: "YAMAHA F310 통기타 소프트백" });
+  assert.equal(result.exactMatch, true);
+  assert.ok(result.rejectionReasons.includes("ACCESSORY"));
+});

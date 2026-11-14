@@ -65,7 +65,9 @@ export function evaluateReferencePriceCandidate({
   const isBundle = BUNDLE_PATTERN.test(productTitle);
   const isUsed = USED_PATTERN.test(productTitle);
   const isRental = RENTAL_PATTERN.test(productTitle);
-  const isAccessory = relevance.relevance === LISTING_RELEVANCE.IRRELEVANT;
+  const isAccessory = relevance.relevance === LISTING_RELEVANCE.IRRELEVANT
+    || (relevance.relevance === LISTING_RELEVANCE.UNCERTAIN
+      && relevance.reasons.some((reason) => reason.startsWith("ACCESSORY_ONLY_")));
   const exactMatch = identity.brand === brand && identity.model === model;
   const validPrice = Number.isSafeInteger(priceKrw) && priceKrw > 0;
 

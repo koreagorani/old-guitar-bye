@@ -304,3 +304,25 @@ test("obvious color-like SKU is rejected by generic parser", () => {
   });
   assert.notEqual(result.model, "BLACK500");
 });
+
+test("recognizes verified models only with their own brand and keeps conflicts unresolved", () => {
+  const examples = [
+    ["Crafter TIDY", "CRAFTER", "TIDY", "HIGH"],
+    ["고퍼우드 White501", "GOPHERWOOD", "WHITE501", "HIGH"],
+    ["고퍼우드 S-classic V WHITE501 HSS 기타", "GOPHERWOOD", "WHITE501", "HIGH"],
+    ["Crafter TIDY HT100", "CRAFTER", null, "LOW"],
+    ["고퍼우드 White501 G110", "GOPHERWOOD", null, "LOW"],
+    ["고퍼우드 White5010", "GOPHERWOOD", null, "LOW"],
+    ["펜더 White501", "FENDER", null, "LOW"],
+    ["TIDY", null, null, "LOW"],
+    ["코로나 일렉기타", "CORONA", null, "LOW"],
+    ["코로나 일렉기타 MS363", "CORONA", null, "LOW"],
+    ["펜더 Corona California 일렉기타 CD60", "FENDER", "CD60", "HIGH"],
+    ["Gio E.MS363", null, "MS363", "LOW"],
+  ];
+  for (const [title, brand, model, confidence] of examples) {
+    const actual = normalizeGuitarIdentity({ title });
+    assert.deepEqual({ brand: actual.brand, model: actual.model, confidence: actual.confidence },
+      { brand, model, confidence }, title);
+  }
+});

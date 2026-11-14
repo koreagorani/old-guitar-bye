@@ -20,6 +20,7 @@ export const GUITAR_BRAND_ALIASES = Object.freeze({
   OVATION: Object.freeze(["OVATION", "오베이션"]),
   SCHECTER: Object.freeze(["SCHECTER", "쉑터", "셰크터"]),
   COUNTESS: Object.freeze(["COUNTESS", "카운티스"]),
+  CORONA: Object.freeze(["CORONA", "코로나"]),
   OLIVIA: Object.freeze(["OLIVIA", "올리비아"]),
 });
 

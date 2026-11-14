@@ -55,3 +55,31 @@ SQLite를 읽기 전용으로 열고 현재 DB에 보관된 번개장터 매물�
 - `titleModelHints`는 실패 제목에 반복되는 코드·영문 토큰입니다. 모델명이 확인된 값으로 해석하면 시리즈명, 옵션명, 일련번호 등에서 오탐이 생길 수 있습니다.
 - `reviewPriorities`는 브랜드·실패 유형별로 `RELEVANT` 건수, 이어서 `UNCERTAIN` 건수가 많은 순입니다. 대표 제목과 URL, 검토 시 유의할 오탐 위험이 포함됩니다. 순위는 실제 매입 기회나 개선 효과를 추정하지 않습니다.
 - `IDENTITY_DIAGNOSTIC_LOOKBACK_DAYS`로 최근 기간을, `IDENTITY_DIAGNOSTIC_LIMIT`으로 기간별 샘플·우선 검토 항목 및 브랜드별 패턴 최대 개수를 바꿀 수 있습니다. 기본값은 각각 30입니다.
+
+### 모델 식별 규칙 변경 전후 비교
+
+운영 서비스는 실행하지 않은 상태에서도, 두 코드 버전이 동일한 SQLite 매물과
+동일한 30일 기준 시각을 사용하도록 읽기 전용으로 비교할 수 있습니다.
+
+```bash
+cd /home/ubuntu/old-guitar-bye
+git fetch origin main
+git worktree add --detach /tmp/old-guitar-identity-base a4f0520b7531283b5eeb817069de7cac85195d6a
+git worktree add --detach /tmp/old-guitar-identity-new origin/main
+node /tmp/old-guitar-identity-new/scripts/compare-identity.js \
+  /tmp/old-guitar-identity-base /home/ubuntu/old-guitar-bye/data/guitar.db \
+  > /tmp/old-guitar-identity-comparison.json
+```
+
+신품가 비교 가능 건수와 신규 `TRACK`을 확인하려면 DB 경로 뒤에
+`--live-reference`를 추가합니다. 두 버전은 공통 검색에 같은 판매처 응답을
+사용하고 각 버전의 규칙으로 상품을 확인합니다. 판매처 접근 실패는
+`referenceSourceErrors`에 남으며, 오류가 있으면 신품가 비교 건수가 적게
+집계될 수 있습니다. 기본 실행에서는 가격 비교와 `TRACK` 결과가 `null`입니다.
+어느 모드에서도 후보 등록이나 Telegram 전송은 실행하지 않습니다.
+
+`modelCodeDetected`에는 브랜드 미확정 코드도 포함됩니다. `confidence`와
+`actionableIdentity`는 관련성 필터를 통과한 매물 기준입니다.
+`reviewSample`은 결과가 바뀐 최근 매물 최대 30건입니다. 제목과 URL을 확인해
+양쪽 버전의 본체·액세서리 오분류 및 잘못된 브랜드·모델을 각각 집계합니다.
+이 변경 표본의 오류 건수는 전체 매물의 정확도와 별개입니다.

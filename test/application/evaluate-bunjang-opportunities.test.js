@@ -227,3 +227,31 @@ test("threshold override changes decision", async () => {
   assert.equal(result.results[0].decision, "TRACK");
   assert.equal(result.thresholdPct, 13);
 });
+
+test("verified models reach the reference check while standalone accessories and unverified codes do not", async () => {
+  const titles = ["Crafter TIDY", "고퍼우드 White501", "Gio E.MS363", "코로나 일렉기타",
+    "펜더 베이스기타 소프트백", "Crafter TIDY HT100"];
+  const date = "2026-11-14T08:00:00.000Z";
+  const queried = [];
+  const evaluation = await evaluateBunjangOpportunities({
+    listings: titles.map((title, index) => ({
+      title,
+      externalListingId: String(index),
+      lastSeenAt: date,
+      askingPriceKrw: index === 0 ? 12000 : 12001,
+    })),
+    now: () => new Date(date),
+    resolver: {
+      async resolve({ brand, model }) {
+        queried.push([brand, model]);
+        return { referenceNewPriceKrw: 100000, confidence: "MEDIUM" };
+      },
+    },
+  });
+  assert.deepEqual(queried, [["CRAFTER", "TIDY"], ["GOPHERWOOD", "WHITE501"]]);
+  assert.equal(evaluation.thresholdPct, 12);
+  assert.equal(evaluation.summary.irrelevant, 1);
+  assert.equal(evaluation.summary.identityUnresolved, 3);
+  assert.equal(evaluation.track[0].title, "Crafter TIDY");
+  assert.equal(evaluation.ignore[0].title, "고퍼우드 White501");
+});

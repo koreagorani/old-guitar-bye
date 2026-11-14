@@ -182,3 +182,23 @@ test("known brand plus model plus generic guitar remains relevant", () => {
   assert.equal(result.relevance, LISTING_RELEVANCE.RELEVANT);
   assert.ok(result.reasons.includes("BRAND_MODEL_GUITAR_CONTEXT"));
 });
+
+test("distinguishes standalone accessories, body bundles, and ambiguous offers", () => {
+  const examples = [
+    ["펜더 베이스기타 소프트백", "", "IRRELEVANT"],
+    ["펜더 베이스기타 소프트 백 + 스트랩", "", "IRRELEVANT"],
+    ["기타 케이스 + 스트랩", "", "IRRELEVANT"],
+    ["기타 앰프 + 케이블", "", "IRRELEVANT"],
+    ["케이스 + 기타 스트랩", "", "IRRELEVANT"],
+    ["야마하 F310 통기타 + 소프트백 단품", "", "IRRELEVANT"],
+    ["펜더 베이스기타 소프트백", "기타 본체 미포함", "IRRELEVANT"],
+    ["펜더 베이스기타 + 소프트백", "", "RELEVANT"],
+    ["고퍼우드 G110 통기타 소프트백 포함", "", "RELEVANT"],
+    ["야마하 F310 + 가방", "", "RELEVANT"],
+    ["야마하 F310 통기타 소프트백", "", "UNCERTAIN"],
+    ["펜더 베이스기타 소프트백", "기타 본체 판매", "UNCERTAIN"],
+  ];
+  for (const [title, description, expected] of examples) {
+    assert.equal(classifyListingRelevance({ title, description }).relevance, expected, title);
+  }
+});

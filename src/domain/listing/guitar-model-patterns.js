@@ -18,6 +18,12 @@ export const GUITAR_MODEL_RULES = Object.freeze({
   ]),
   CRAFTER: Object.freeze([
     {
+      id: "CRAFTER_TIDY",
+      pattern: /\bTIDY\b/i,
+      build: () => ({ model: "TIDY", variant: null }),
+      checkOtherModels: true,
+    },
+    {
       id: "CRAFTER_HT100",
       pattern: /\bHT\s*[- ]?\s*100(?:\s*[/ -]\s*(OP\.N|OPN|NAT|NS))?\b/i,
       build: (match) => ({
@@ -45,6 +51,12 @@ export const GUITAR_MODEL_RULES = Object.freeze({
     },
   ]),
   GOPHERWOOD: Object.freeze([
+    {
+      id: "GOPHERWOOD_WHITE501",
+      pattern: /\b(?:S[- ]?CLASSIC\s+V\s+)?WHITE[- ]?501(?:\s+(HSS))?(?![A-Z0-9-])/i,
+      build: (match) => ({ model: "WHITE501", variant: match[1]?.toUpperCase() ?? null }),
+      checkOtherModels: true,
+    },
     {
       id: "GOPHERWOOD_S_CLASSIC_V",
       pattern: /\bS\s*[- ]?\s*CLASSIC\s+V(?:\s+(2G|2ND\s+GEN(?:ERATION)?))?(?:\s+(JET\s+BLACK|FLORAL\s+WHITE|URANUS\s+BLUE|SCARLET|BATTLESHIP\s+GRAY|LAVENDER))?/i,
@@ -143,6 +155,7 @@ export function matchBrandModelRule(brand, text) {
       ...rule.build(match),
       raw: match[0],
       ruleId: rule.id,
+      checkOtherModels: rule.checkOtherModels ?? false,
     };
   }
   return null;

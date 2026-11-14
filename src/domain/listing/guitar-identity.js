@@ -56,6 +56,9 @@ function aliasRegex(alias, flags = "i") {
   return new RegExp(escaped, flags);
 }
 
+// Corona also names a city and appears in unrelated descriptions.
+const CORONA_GUITAR_CONTEXT = /(?:^|[^A-Z0-9가-힣])(?:CORONA|코로나)\s*[\])]?\s*(?:일렉(?:트릭)?\s*기타|베이스\s*기타|electric\s+guitar|bass\s+guitar)/i;
+
 function detectBrand(text) {
   if (text === "") {
     return null;
@@ -63,6 +66,7 @@ function detectBrand(text) {
 
   const matches = [];
   for (const brand of GUITAR_BRANDS) {
+    if (brand === "CORONA" && !CORONA_GUITAR_CONTEXT.test(text)) continue;
     for (const alias of GUITAR_BRAND_ALIASES[brand]) {
       if (aliasRegex(alias).test(text)) {
         matches.push({ brand, alias });
@@ -125,7 +129,8 @@ function detectDescriptionBrand(description) {
 
 function stripBrandAliases(text) {
   let stripped = text;
-  for (const aliases of Object.values(GUITAR_BRAND_ALIASES)) {
+  for (const [brand, aliases] of Object.entries(GUITAR_BRAND_ALIASES)) {
+    if (brand === "CORONA") continue;
     for (const alias of aliases) {
       const escaped = escapeRegex(alias).replace(/\s+/g, "\\s*");
       stripped = stripped.replace(new RegExp(escaped, "gi"), " ");
@@ -167,16 +172,28 @@ function canonicalizeModelMatch(match) {
   return null;
 }
 
-function detectModel(text, brand = null) {
+function detectModel(text, brand = null, checkOtherModels = true) {
   if (text === "") {
     return null;
   }
 
   const upper = stripBrandAliases(text).toUpperCase();
 
+  // Recognize the Corona brand without treating arbitrary nearby codes as verified models.
+  if (brand === "CORONA") return null;
   if (brand) {
     const brandAware = matchBrandModelRule(brand, upper);
     if (brandAware) {
+      if (brandAware.checkOtherModels && checkOtherModels) {
+        const remainder = upper.replaceAll(brandAware.raw, " ");
+        const other = detectModel(remainder, brand, false);
+        if (other?.conflict || (other && other.model !== brandAware.model)) {
+          return {
+            conflict: true,
+            models: [brandAware.model, ...(other.models ?? [other.model])],
+          };
+        }
+      }
       return brandAware;
     }
   }
