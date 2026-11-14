@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { diagnoseLowConfidenceListings } from "../src/application/listings/diagnose-low-confidence.js";
 import { listListingsByMarketplace } from "../src/repositories/listing-repository.js";
-import { openDatabase } from "./migrate.js";
 
 function parsePositiveInteger(value, fallback, fieldName) {
   if (value === undefined || value === "") return fallback;
@@ -19,7 +19,7 @@ const limit = parsePositiveInteger(process.env.IDENTITY_DIAGNOSTIC_LIMIT, 30, "I
 
 if (!existsSync(databasePath)) throw new Error(`Database does not exist: ${databasePath}`);
 
-const database = openDatabase(databasePath);
+const database = new DatabaseSync(databasePath, { readOnly: true });
 try {
   const listings = listListingsByMarketplace(database, "BUNJANG");
   console.log(JSON.stringify({
