@@ -16,6 +16,7 @@
     "diagnose:identity": "node scripts/diagnose-low-confidence.js",
     "diagnose:relevance": "node scripts/diagnose-listing-relevance.js",
     "diagnose:uncertain": "node scripts/diagnose-uncertain.js",
+    "diagnose:title-patterns": "node scripts/diagnose-title-patterns.js",
     "evaluate:opportunities": "node scripts/evaluate-bunjang-opportunities.js",
     "monitor:opportunities": "node scripts/run-opportunity-monitor.js"
   }

@@ -70,7 +70,7 @@ const ACCESSORY_RULES = Object.freeze([
   },
   {
     reason: "ACCESSORY_ONLY_STAND",
-    pattern: /(?:기타\s*(?:용\s*)?스탠드|guitar\s*stand)/i,
+    pattern: /(?:기타\s*(?:용\s*)?(?:스탠드|거치대)|guitar\s*stand)/i,
   },
   {
     reason: "ACCESSORY_ONLY_PICKUP",
@@ -145,6 +145,7 @@ const ACCESSORY_ONLY_SIGNAL = /(?:단품|본체\s*(?:미포함|없음|제외)|�
 const STRONG_BODY_PATTERN = /(?:통\s*기타|어쿠스틱\s*기타|클래식\s*기타|일렉(?:트릭)?\s*기타|베이스\s*기타|\b(?:acoustic|classical|electric|bass)\s+guitar\b)/i;
 const GENERIC_GUITAR_NOUN_PATTERN = /(?:^|\s|[+(/])기타(?:$|\s|[+),/])/i;
 const DESCRIPTION_BODY_PATTERN = /(?:기타\s*본체|본체\s*(?:판매|팝니다|포함)|(?:통\s*기타|어쿠스틱\s*기타|클래식\s*기타|일렉\s*기타|베이스\s*기타).*(?:판매|팝니다|양도))/i;
+const EXPLICIT_DESCRIPTION_BODY = /(?:기타\s*(?:본체|본품)|(?:통|어쿠스틱|클래식|일렉|베이스)\s*기타\s*본품|본체\s*(?:판매|팝니다|양도))/i;
 const MODEL_LIKE_PATTERN = /\b(?:[a-z]{1,12}\s*[- ]?\s*\d{2,5}[a-z]{0,5}|\d{2,4}[a-z]{1,4})\b/i;
 
 function normalizeText(value, fieldName) {
@@ -242,6 +243,8 @@ export function classifyListingRelevance({
     && MODEL_LIKE_PATTERN.test(normalizedTitle);
   const descriptionHasBody = !ACCESSORY_ONLY_SIGNAL.test(normalizedDescription)
     && DESCRIPTION_BODY_PATTERN.test(normalizedDescription);
+  const explicitDescriptionBody = !ACCESSORY_ONLY_SIGNAL.test(normalizedDescription)
+    && EXPLICIT_DESCRIPTION_BODY.test(normalizedDescription);
 
   const otherContextReasons = findReasons(
     normalizedTitle,
@@ -290,6 +293,18 @@ export function classifyListingRelevance({
       };
     }
 
+    // A model and a guitar-type phrase in the title corroborate an explicit
+    // body statement in the description. A generic bag/case title does not.
+    if (!explicitlyAccessoryOnly && explicitDescriptionBody
+      && titleHasStrongBody && titleHasSpecificIdentity) {
+      reasons.push("DESCRIPTION_CONFIRMS_GUITAR_BODY");
+      return {
+        relevance: LISTING_RELEVANCE.RELEVANT,
+        guitarType,
+        reasons,
+      };
+    }
+
     if (descriptionHasBody || (!explicitlyAccessoryOnly && ((titleHasStrongBody && titleHasSpecificIdentity)
       || hasSeparateBody(normalizedTitle)))) {
       reasons.push(...accessoryReasons, descriptionHasBody
@@ -321,6 +336,15 @@ export function classifyListingRelevance({
 
   if (titleHasSpecificIdentity && titleHasGenericGuitar) {
     reasons.push("BRAND_MODEL_GUITAR_CONTEXT");
+    return {
+      relevance: LISTING_RELEVANCE.RELEVANT,
+      guitarType,
+      reasons,
+    };
+  }
+
+  if (explicitDescriptionBody) {
+    reasons.push("DESCRIPTION_CONFIRMS_GUITAR_BODY");
     return {
       relevance: LISTING_RELEVANCE.RELEVANT,
       guitarType,

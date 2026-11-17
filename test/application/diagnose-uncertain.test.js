@@ -17,7 +17,7 @@ test("counts all UNCERTAIN reasons and separates missing stored text from seller
   const listings = [
     listing("1", "Crafter TIDY"),
     listing("2", "고퍼우드 WHITE501"),
-    listing("3", "무슨 기타인지 몰라요", "브랜드: 야마하, 모델명: F310. 통기타 본체 판매"),
+    listing("3", "무슨 기타인지 몰라요", "브랜드: 야마하, 모델명: F310. 통기타 판매"),
     listing("4", "펜더 베이스기타 소프트백"),
     listing("5", "YAMAHA F310 통기타"),
     listing("6", "기타 스트랩"),
@@ -63,7 +63,7 @@ test("detail probe records masked body, before and after decisions, failures, an
   assert.equal(report.descriptionPresentPctOfSucceeded, 100);
   assert.equal(report.addedBrand, 1);
   assert.equal(report.addedModel, 1);
-  assert.equal(report.becameRelevant, 0);
+  assert.equal(report.becameRelevant, 1);
   assert.equal(report.meanRequestMs, 50);
   assert.deepEqual(report.errorCounts, { HTTP_403: 1 });
   assert.equal(report.stopReason, "HTTP_403");
@@ -72,12 +72,12 @@ test("detail probe records masked body, before and after decisions, failures, an
   assert.equal(report.results.find(({ status }) => status === "REQUEST_FAILED").httpStatus, 403);
   const loaded = report.results.find(({ status }) => status === "DETAIL_LOADED");
   assert.equal(loaded.before.relevance, "UNCERTAIN");
-  assert.equal(loaded.after.relevance, "UNCERTAIN");
+  assert.equal(loaded.after.relevance, "RELEVANT");
   assert.equal(loaded.before.identity.brand, null);
   assert.equal(loaded.after.identity.brand, "YAMAHA");
   assert.equal(loaded.addedFromDescription.model, "F310");
   assert.equal(loaded.addedFromDescription.guitarType, "ELECTRIC");
-  assert.deepEqual(loaded.addedFromDescription.relevanceReasons, ["ELECTRIC_KEYWORD", "DESCRIPTION_BODY_CONTEXT"]);
+  assert.deepEqual(loaded.addedFromDescription.relevanceReasons, ["ELECTRIC_KEYWORD", "DESCRIPTION_CONFIRMS_GUITAR_BODY"]);
   assert.equal(loaded.manualReview, "NOT_REVIEWED");
   assert.match(loaded.description, /REDACTED_PHONE/);
   assert.match(loaded.description, /REDACTED_EMAIL/);

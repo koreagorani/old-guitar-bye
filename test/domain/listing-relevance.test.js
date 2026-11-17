@@ -18,6 +18,7 @@ const cases = [
   ["기타 스트랩", "IRRELEVANT", "UNKNOWN"],
   ["기타줄 새상품", "IRRELEVANT", "UNKNOWN"],
   ["기타 스탠드", "IRRELEVANT", "UNKNOWN"],
+  ["기타 거치대", "IRRELEVANT", "UNKNOWN"],
   ["기타 앰프", "IRRELEVANT", "UNKNOWN"],
   ["봇치더록 베이스 기타 백", "IRRELEVANT", "BASS"],
   ["F310", "UNCERTAIN", "UNKNOWN"],
@@ -197,6 +198,38 @@ test("distinguishes standalone accessories, body bundles, and ambiguous offers",
     ["야마하 F310 + 가방", "", "RELEVANT"],
     ["야마하 F310 통기타 소프트백", "", "UNCERTAIN"],
     ["펜더 베이스기타 소프트백", "기타 본체 판매", "UNCERTAIN"],
+  ];
+  for (const [title, description, expected] of examples) {
+    assert.equal(classifyListingRelevance({ title, description }).relevance, expected, title);
+  }
+});
+
+test("confirmed body descriptions resolve the three observed guitar listings", () => {
+  // Descriptions represent the verified facts, not verbatim seller text.
+  const observed = [
+    ["콜트 g280 일렉기타&바시너 기타가방", "콜트 G280 일렉기타 본체 판매, 사용 상태와 기타가방 구성 설명"],
+    ["헥스 세미 클래식기타 픽업 Y500N", "헥스 Y500N 클래식 기타 본품과 구성품 판매, 픽업 장착. 새상품"],
+    ["콜트 어스100 기타", "Cort Earth100 기타 본체와 구성품 판매"],
+  ];
+  for (const [title, description] of observed) {
+    assert.equal(classifyListingRelevance({ title }).relevance, "UNCERTAIN", title);
+    const result = classifyListingRelevance({ title, description });
+    assert.equal(result.relevance, "RELEVANT", title);
+    assert.ok(result.reasons.includes("DESCRIPTION_CONFIRMS_GUITAR_BODY"), title);
+  }
+});
+
+test("accessory-only and contradictory offers are not promoted by a generic body mention", () => {
+  const examples = [
+    ["펜더 베이스기타 소프트백", "기타 본체 판매", "UNCERTAIN"],
+    ["야마하 F310 기타 가방", "기타 본체 판매", "UNCERTAIN"],
+    ["기타 케이스", "기타 본체 판매", "UNCERTAIN"],
+    ["기타 픽업 단품", "기타 본체 판매", "UNCERTAIN"],
+    ["기타 앰프", "기타 본체 판매", "UNCERTAIN"],
+    ["기타 거치대", "기타 본체 판매", "UNCERTAIN"],
+    ["기타줄", "기타 본체 판매", "UNCERTAIN"],
+    ["헥스 클래식기타 픽업 Y500N", "기타 본체 미포함, 픽업 단품", "UNCERTAIN"],
+    ["콜트 G280 일렉기타 + 가방 단품", "기타 본체 판매", "UNCERTAIN"],
   ];
   for (const [title, description, expected] of examples) {
     assert.equal(classifyListingRelevance({ title, description }).relevance, expected, title);

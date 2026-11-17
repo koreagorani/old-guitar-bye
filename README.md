@@ -142,3 +142,30 @@ cd /home/ubuntu/old-guitar-bye && DATABASE_PATH=/home/ubuntu/old-guitar-bye/data
 `failed`를 함께 보아야 합니다. 전체 collector에 상세 수집을 적용하면
 현재 기본 설정상 실행당 최대 60회, 30분 주기로 하루 최대 약 2,880회의
 상세 요청이 추가됩니다. 이는 중복 제거 전 상한이며 성공률 추정은 아닙니다.
+
+### UNCERTAIN 제목 패턴과 동일 DB 전후 비교
+
+다음 명령은 Bunjang 매물의 최근 30일 데이터를 SQLite 읽기 전용으로
+분석합니다. `--compare-baseline`은 로컬 Git 이력의 직전 분류기
+`eb42f85d20232d03cc852a89ab820f74a85cf628`를 읽어 **같은 DB 행**에
+전후 규칙을 적용합니다. 상세 API, 신품가 조회, 알림, 후보 등록은 실행하지 않습니다.
+
+```bash
+cd /home/ubuntu/old-guitar-bye && DATABASE_PATH=/home/ubuntu/old-guitar-bye/data/guitar.db npm run -s diagnose:title-patterns -- --compare-baseline > /tmp/old-guitar-title-patterns.json
+```
+
+`patterns`는 현재 UNCERTAIN 전체, `noDecisivePatterns`는 그중
+`NO_DECISIVE_GUITAR_BODY_SIGNAL` 매물의 제목 단서를 중복 집계합니다.
+각 항목에 건수, 규칙 설명, 마스킹한 대표 제목과 URL이 들어갑니다.
+`SUSPECTED_UNRELATED_SEARCH_RESULT`는 제목만으로 의심한 사례로 실제
+무관 상품 판정이 아닙니다. `irrelevantOtherEtcCount`는 이미 IRRELEVANT로
+제외된 '기타 상품' 문맥의 건수입니다.
+
+`comparison.baselineCounts`와 `currentCounts`는 같은 30일 매물의 관련성
+판정입니다. `identityCounts`에는 브랜드·모델 인식과 신품가 조회 자격
+(IRRELEVANT 제외, 브랜드·모델 및 충분한 식별 확신도)을 따로 기록합니다.
+UNCERTAIN도 기존 평가기에서는 신품가 조회 자격이 있으므로
+`changes.newlyRelevant`를 신규 신품가 조회 건수로 해석하지 않습니다.
+실제 신품가 검색 성공, 매입 기준 12% 충족, TRACK 여부는 이 진단에서
+판정하지 않습니다. 운영 DB에 본문이 없다면 이번 본문 근거 규칙의 효과는
+해당 DB에서 관측되지 않을 수 있습니다.
