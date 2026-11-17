@@ -83,3 +83,48 @@ node /tmp/old-guitar-identity-new/scripts/compare-identity.js \
 `reviewSample`은 결과가 바뀐 최근 매물 최대 30건입니다. 제목과 URL을 확인해
 양쪽 버전의 본체·액세서리 오분류 및 잘못된 브랜드·모델을 각각 집계합니다.
 이 변경 표본의 오류 건수는 전체 매물의 정확도와 별개입니다.
+
+### UNCERTAIN 매물 데이터 진단
+
+운영 DB를 읽기 전용으로 열어 최근 30일(마지막 수집 시각 기준)을 분석합니다.
+운영 설정을 바꾸거나 후보를 생성하지 않습니다.
+
+```bash
+cd /home/ubuntu/old-guitar-bye
+DATABASE_PATH=/home/ubuntu/old-guitar-bye/data/guitar.db \
+  npm run -s diagnose:uncertain > /tmp/old-guitar-uncertain.json
+```
+
+`counts`는 분류 결과입니다. `uncertainReasons`는 **UNCERTAIN만** 대상으로
+각 reason의 건수, 비율, 직접 조건, 최대 3개의 제목과 URL을 보여줍니다.
+한 매물에 여러 reason이 붙을 수 있어 비율의 합은 100%를 넘을 수 있습니다.
+`dataCoverage`는 전체·RELEVANT·UNCERTAIN의 제목과 저장된 본문 보유율,
+본문 길이 분위수, 제목에서의 본체 표현·브랜드·모델 인식, 저장된 본문을
+추가했을 때의 브랜드·모델 인식 증가를 보여줍니다. 브랜드·모델 인식은
+현행 식별기 기준으로, 판매자가 실제 적은 모든 표현의 비율은 아닙니다.
+검색 응답을 저장할 때 본문은 빈 문자열이고 상세 API를 호출한 경우에만
+본문이 채워집니다. 따라서 빈 본문은 `MISSING_DATA`이며 판매자가
+본문을 작성하지 않았다는 증거가 아닙니다. 기존 DB에는 상세 수집 여부를
+구분하는 출처 필드가 없어 저장된 본문의 원천도 검증되지 않습니다.
+
+`sample`은 reason과 제목에서 인식된 브랜드에 걸쳐 최대 100건을 고정
+ID 해시 순으로 선택합니다. `bodyHeuristic`, `accessoryHeuristic`,
+`modelEvidence`는 자동 단서이며 `manualReview`는 `NOT_REVIEWED`입니다.
+원문과 사진을 직접 검토한 뒤 실제 본체·액세서리 여부 및 모델 증거의 위치를
+별도로 기록해야 수동 확인 표본으로 인정할 수 있습니다.
+
+소수의 원본 상세 응답으로 빈 본문의 원인을 확인하려면 별도 옵션을
+명시합니다. 최대 3건을 1.5초 간격으로 요청하고 본문 원문은 출력하지
+않습니다. 접속 제한 또는 실패 시 그대로 실패로 기록합니다.
+
+```bash
+DATABASE_PATH=/home/ubuntu/old-guitar-bye/data/guitar.db \
+  npm run -s diagnose:uncertain -- --probe-details \
+  > /tmp/old-guitar-uncertain-probe.json
+```
+
+`detailProbe.results`에는 요청 결과, 본문 보유 여부와 길이, 제목에 없던
+브랜드·모델 인식 여부, 본문 포함 후 관련성 결과, 지연 시간이 있습니다.
+`failed`를 함께 보아야 합니다. 전체 collector에 상세 수집을 적용하면
+현재 기본 설정상 실행당 최대 60회, 30분 주기로 하루 최대 약 2,880회의
+상세 요청이 추가됩니다. 이는 중복 제거 전 상한이며 성공률 추정은 아닙니다.
