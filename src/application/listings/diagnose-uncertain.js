@@ -11,12 +11,20 @@ const REASON_CONDITIONS = Object.freeze({
   BASS_KEYWORD: "제목 또는 저장된 본문에 베이스 기타 종류 단서가 있음",
 });
 
+export function redactListingText(value) {
+  return value
+    .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, "[REDACTED_EMAIL]")
+    .replace(/https?:\/\/\S+/gi, "[REDACTED_LINK]")
+    .replace(/(?:\+?82[-.\s]?)?0?1[016789][-.\s]?\d{3,4}[-.\s]?\d{4}\b/g, "[REDACTED_PHONE]")
+    .replace(/\b0(?:2|[3-6]\d)[-.\s]?\d{3,4}[-.\s]?\d{4}\b/g, "[REDACTED_PHONE]")
+    .replace(/\b\d{6}[-.\s]?[1-4]\d{6}\b/g, "[REDACTED_ID]")
+    .replace(/\b(?:\d[-.\s]?){9,16}\d\b/g, "[REDACTED_NUMBER]");
+}
+
 function safeExample(row) {
   const id = /^\d+$/.test(row.externalListingId) ? row.externalListingId : null;
   return {
-    title: row.title
-      .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, "[REDACTED_EMAIL]")
-      .replace(/(?:\+?82[-\s]?)?0?1[016789][-.\s]?\d{3,4}[-.\s]?\d{4}\b/g, "[REDACTED_PHONE]"),
+    title: redactListingText(row.title),
     url: id ? `https://m.bunjang.co.kr/products/${id}` : null,
   };
 }

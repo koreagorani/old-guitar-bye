@@ -8,10 +8,26 @@ import { mergeBunjangDetail } from "../src/integrations/bunjang/bunjang-parser.j
 import { probeUncertainDetails } from "../src/application/listings/probe-uncertain-details.js";
 
 const argumentsProvided = process.argv.slice(2);
-const probe = argumentsProvided.includes("--probe-details");
-const positional = argumentsProvided.filter((arg) => arg !== "--probe-details");
-if (positional.length > 1 || positional.some((arg) => arg.startsWith("--"))) {
-  throw new TypeError("Usage: npm run diagnose:uncertain -- [database path] [--probe-details]");
+let probe = false;
+let probeLimit = 3;
+let limitProvided = false;
+const positional = [];
+for (let index = 0; index < argumentsProvided.length; index += 1) {
+  const arg = argumentsProvided[index];
+  if (arg === "--probe-details" && !probe) {
+    probe = true;
+  } else if (arg === "--probe-limit" && !limitProvided) {
+    limitProvided = true;
+    probeLimit = Number(argumentsProvided[++index]);
+  } else if (!arg.startsWith("--")) {
+    positional.push(arg);
+  } else {
+    throw new TypeError("Unknown or repeated option: " + arg);
+  }
+}
+if (positional.length > 1 || (limitProvided && !probe)
+  || !Number.isSafeInteger(probeLimit) || probeLimit < 1 || probeLimit > 30) {
+  throw new TypeError("Usage: npm run diagnose:uncertain -- [database path] [--probe-details [--probe-limit 1..30]]");
 }
 const databasePath = resolve(process.env.DATABASE_PATH ?? positional[0] ?? "old-guitar-bye.sqlite");
 if (!existsSync(databasePath)) throw new Error(`Database does not exist: ${databasePath}`);
@@ -29,6 +45,7 @@ if (probe) {
     listings,
     client: createBunjangClient(),
     merge: mergeBunjangDetail,
+    limit: probeLimit,
   });
 }
 console.log(JSON.stringify(report, null, 2));

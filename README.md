@@ -113,9 +113,11 @@ ID 해시 순으로 선택합니다. `bodyHeuristic`, `accessoryHeuristic`,
 원문과 사진을 직접 검토한 뒤 실제 본체·액세서리 여부 및 모델 증거의 위치를
 별도로 기록해야 수동 확인 표본으로 인정할 수 있습니다.
 
-소수의 원본 상세 응답으로 빈 본문의 원인을 확인하려면 별도 옵션을
-명시합니다. 최대 3건을 1.5초 간격으로 요청하고 본문 원문은 출력하지
-않습니다. 접속 제한 또는 실패 시 그대로 실패로 기록합니다.
+원본 상세 응답으로 빈 본문의 원인을 확인하려면 별도 옵션을 명시합니다.
+기본 3건, `--probe-limit`으로 최대 30건을 1.5초 이상 간격으로 요청합니다.
+같은 HTTP 400 등 실패가 두 번 연속 발생하면 중단하고, HTTP 403·429 또는
+접근 제한 응답은 한 번 발생해도 중단합니다. 같은 매물은 한 번만 요청합니다. 본문과
+제목의 전화번호·이메일·링크·긴 식별번호 형태는 마스킹합니다.
 
 ```bash
 DATABASE_PATH=/home/ubuntu/old-guitar-bye/data/guitar.db \
@@ -125,6 +127,18 @@ DATABASE_PATH=/home/ubuntu/old-guitar-bye/data/guitar.db \
 
 `detailProbe.results`에는 요청 결과, 본문 보유 여부와 길이, 제목에 없던
 브랜드·모델 인식 여부, 본문 포함 후 관련성 결과, 지연 시간이 있습니다.
+각 성공 결과에는 마스킹한 본문과 전후 관련성 사유, 브랜드·모델 식별 결과가
+있습니다. `manualReview: NOT_REVIEWED`는 원문·사진을 사람이 확인하지
+않았다는 뜻입니다. `descriptionPresentPctOfSucceeded`의 분모는 조회에
+성공한 건수이며, `errorCounts`와 `stopReason`에서 실패·조기 중단을 확인합니다.
+30건은 탐색적 표본이므로 전체 UNCERTAIN 매물의 비율로 일반화하지 않습니다.
+
+30건을 조사할 때는 다음 명령을 실행합니다.
+
+```bash
+cd /home/ubuntu/old-guitar-bye && DATABASE_PATH=/home/ubuntu/old-guitar-bye/data/guitar.db npm run -s diagnose:uncertain -- --probe-details --probe-limit 30 > /tmp/old-guitar-uncertain-30.json
+```
+
 `failed`를 함께 보아야 합니다. 전체 collector에 상세 수집을 적용하면
 현재 기본 설정상 실행당 최대 60회, 30분 주기로 하루 최대 약 2,880회의
 상세 요청이 추가됩니다. 이는 중복 제거 전 상한이며 성공률 추정은 아닙니다.

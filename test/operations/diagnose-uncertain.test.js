@@ -45,6 +45,13 @@ test("UNCERTAIN CLI reads only Bunjang without changing DB or requesting details
   assert.equal(report.detailProbe, undefined);
   assert.deepEqual(readFileSync(path), before);
 
+  const invalidLimit = spawnSync(process.execPath, [script, "--probe-details", "--probe-limit", "31"], {
+    encoding: "utf8", env: { ...process.env, DATABASE_PATH: path },
+  });
+  assert.notEqual(invalidLimit.status, 0);
+  assert.match(invalidLimit.stderr, /probe-limit 1\.\.30/);
+  assert.deepEqual(readFileSync(path), before);
+
   const missing = join(directory, "missing.sqlite");
   assert.notEqual(run(missing).status, 0);
   assert.equal(existsSync(missing), false);
