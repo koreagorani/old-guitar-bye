@@ -14,7 +14,7 @@ test("counts overlapping UNCERTAIN title patterns without claiming human verific
     row("1", "나이키 운동화"),
     row("2", "야마하"),
     row("3", "F310"),
-    row("4", "콜트 어스100 기타"),
+    row("4", "콜트 어스100"),
     row("5", "야마하 F310 통기타 기타 상품 소프트백"),
     row("6", "기타 상품 정리"),
     { ...row("7", "정리합니다"), lastSeenAt: "2026-09-01T00:00:00Z" },
@@ -23,7 +23,7 @@ test("counts overlapping UNCERTAIN title patterns without claiming human verific
   assert.equal(report.total, 6);
   assert.equal(report.counts.UNCERTAIN, 5);
   assert.equal(report.noDecisiveCount, 4);
-  assert.equal(report.patterns.NO_KOREAN_GUITAR_WORD.count, 3);
+  assert.equal(report.patterns.NO_KOREAN_GUITAR_WORD.count, 4);
   assert.equal(report.patterns.OTHER_ETC_MEANING.count, 1);
   assert.equal(report.patterns.BRAND_WITHOUT_MODEL.count, 1);
   assert.equal(report.patterns.MODEL_LIKE_WITHOUT_BRAND.count, 1);
@@ -37,6 +37,29 @@ test("counts overlapping UNCERTAIN title patterns without claiming human verific
     "https://m.bunjang.co.kr/products/1");
   assert.deepEqual(diagnoseTitlePatterns({ listings: [...listings].reverse(), now }).patterns,
     report.patterns);
+  assert.ok(report.reviewSamples.every((item) => item.manualReview === "NOT_REVIEWED"));
+  assert.equal(new Set(report.reviewSamples.map((item) => item.url)).size,
+    report.reviewSamples.length);
+  assert.deepEqual(diagnoseTitlePatterns({ listings: [...listings].reverse(), now }).reviewSamples,
+    report.reviewSamples);
+});
+
+test("reports a wrong HIGH amp code as a safety downgrade and lost reference eligibility", () => {
+  const title = "cort 콜트 베이스기타 사용 10회미만, 기타 입문용 앰프 15w 8인치 스피커 기타 거치대 세트 판매";
+  const report = diagnoseTitlePatterns({
+    listings: [row("10", title)], now,
+    baselineClassify: classifyListingRelevance,
+    baselineNormalize: () => ({ brand: "CORT", model: "15W", confidence: "HIGH", reasons: ["MODEL_FROM_TITLE"] }),
+  });
+  assert.deepEqual(report.comparison.confidenceCounts,
+    { baseline: { HIGH: 1, MEDIUM: 0, LOW: 0 },
+      current: { HIGH: 0, MEDIUM: 0, LOW: 1 } });
+  assert.equal(report.comparison.identityChanges.modelRemoved, 1);
+  assert.equal(report.comparison.identityChanges.confidenceTransitions["HIGH->LOW"], 1);
+  assert.equal(report.comparison.identityChanges.safetyDowngrades.length, 1);
+  assert.ok(report.comparison.identityChanges.safetyDowngrades[0].after.reasons
+    .includes("MODEL_CANDIDATE_MEASUREMENT"));
+  assert.equal(report.comparison.changes.lostReferenceEligible, 1);
 });
 
 test("compares the same rows and separates relevance from reference eligibility", () => {
@@ -51,7 +74,7 @@ test("compares the same rows and separates relevance from reference eligibility"
   const report = diagnoseTitlePatterns({
     listings, now,
     baselineClassify: (listing) => {
-      if (listing.title === "기타 거치대") {
+      if (listing.title === "기타 거치대" || listing.title === "콜트 어스100 기타") {
         return { relevance: "UNCERTAIN", guitarType: "UNKNOWN", reasons: [] };
       }
       return { ...classifyListingRelevance({ title: listing.title }), reasons: [] };

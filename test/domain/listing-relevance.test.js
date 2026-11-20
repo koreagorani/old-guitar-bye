@@ -12,6 +12,11 @@ const cases = [
   ["야마하 F310 기타 + 케이스", "RELEVANT", "UNKNOWN"],
   ["야마하 F310 기타 + 소프트케이스", "RELEVANT", "UNKNOWN"],
   ["콜트 어스100 어쿠스틱 기타", "RELEVANT", "ACOUSTIC"],
+  ["[새상품] 콜트 어스 100 입문용 기타", "RELEVANT", "UNKNOWN"],
+  ["Xbox 360 기타 히어로 컨트롤러", "IRRELEVANT", "UNKNOWN"],
+  ["Bape 베이프 MILO ALL SAFARI CUSHION", "IRRELEVANT", "UNKNOWN"],
+  ["일펜 57 리이슈 st57", "UNCERTAIN", "UNKNOWN"],
+  ["에피폰 레스폴 클래식 원 바이올렛 퍼플 무선앰프 포함", "UNCERTAIN", "UNKNOWN"],
   ["클래식 기타 판매합니다", "RELEVANT", "CLASSICAL"],
   ["통기타 소프트케이스", "IRRELEVANT", "ACOUSTIC"],
   ["야마하 기타 소프트케이스", "IRRELEVANT", "UNKNOWN"],
@@ -184,6 +189,11 @@ test("known brand plus model plus generic guitar remains relevant", () => {
   assert.ok(result.reasons.includes("BRAND_MODEL_GUITAR_CONTEXT"));
 });
 
+test("verified model evidence does not accept an ASCII brand inside another word", () => {
+  const result = classifyListingRelevance({ title: "Cortez EARTH100 기타" });
+  assert.equal(result.relevance, "UNCERTAIN");
+});
+
 test("distinguishes standalone accessories, body bundles, and ambiguous offers", () => {
   const examples = [
     ["펜더 베이스기타 소프트백", "", "IRRELEVANT"],
@@ -212,10 +222,10 @@ test("confirmed body descriptions resolve the three observed guitar listings", (
     ["콜트 어스100 기타", "Cort Earth100 기타 본체와 구성품 판매"],
   ];
   for (const [title, description] of observed) {
-    assert.equal(classifyListingRelevance({ title }).relevance, "UNCERTAIN", title);
     const result = classifyListingRelevance({ title, description });
     assert.equal(result.relevance, "RELEVANT", title);
-    assert.ok(result.reasons.includes("DESCRIPTION_CONFIRMS_GUITAR_BODY"), title);
+    assert.ok(result.reasons.includes("DESCRIPTION_CONFIRMS_GUITAR_BODY")
+      || result.reasons.includes("BRAND_MODEL_GUITAR_CONTEXT"), title);
   }
 });
 

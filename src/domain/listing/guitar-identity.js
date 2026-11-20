@@ -30,6 +30,10 @@ const MODEL_PATTERNS = Object.freeze([
   /\b(\d{2,4})([A-Z]{1,4})\b/i,
 ]);
 
+const MEASUREMENT_CODE = /^\d{1,4}(?:W|WATT|IN|INCH|CM|MM|KG|GB|TB|K|EA|PCS)$/i;
+const ACCESSORY_CONTEXT = /(?:앰프|스피커|케이스|가방|소프트\s*백|픽업|이펙터|튜너|거치대|스탠드|페달|컨트롤러|마이크)/gi;
+const BODY_CONTEXT = /(?:기타|\b(?:guitar|bass)\b)/gi;
+
 function normalizeText(value, fieldName) {
   if (value === null || value === undefined) {
     return "";
@@ -172,7 +176,32 @@ function canonicalizeModelMatch(match) {
   return null;
 }
 
-function detectModel(text, brand = null, checkOtherModels = true) {
+function nearestDistance(text, regex, start, end) {
+  let nearest = Infinity;
+  for (const match of text.matchAll(regex)) {
+    const markerStart = match.index;
+    const markerEnd = markerStart + match[0].length;
+    nearest = Math.min(nearest, Math.max(markerStart - end, start - markerEnd, 0));
+  }
+  return nearest;
+}
+
+function candidateNoiseReason(text, start, end, model) {
+  if (MEASUREMENT_CODE.test(model)) return "MODEL_CANDIDATE_MEASUREMENT";
+  const nearby = text.slice(Math.max(0, start - 12), Math.min(text.length, end + 12));
+  if (/(?:19|20)\d{2}/.test(model)
+    && /(?:연식|년식|구입|구매|제조|생산|\bYEAR\b)/i.test(nearby)) {
+    return "MODEL_CANDIDATE_YEAR_CONTEXT";
+  }
+  const accessoryDistance = nearestDistance(text, ACCESSORY_CONTEXT, start, end);
+  const bodyDistance = nearestDistance(text, BODY_CONTEXT, start, end);
+  if (accessoryDistance <= 10 && accessoryDistance < bodyDistance) {
+    return "MODEL_CANDIDATE_ACCESSORY_CONTEXT";
+  }
+  return null;
+}
+
+function detectModel(text, brand = null, checkOtherModels = true, rejected = []) {
   if (text === "") {
     return null;
   }
@@ -186,7 +215,7 @@ function detectModel(text, brand = null, checkOtherModels = true) {
     if (brandAware) {
       if (brandAware.checkOtherModels && checkOtherModels) {
         const remainder = upper.replaceAll(brandAware.raw, " ");
-        const other = detectModel(remainder, brand, false);
+        const other = detectModel(remainder, brand, false, rejected);
         if (other?.conflict || (other && other.model !== brandAware.model)) {
           return {
             conflict: true,
@@ -225,7 +254,9 @@ function detectModel(text, brand = null, checkOtherModels = true) {
         continue;
       }
       const canonical = canonicalizeModelMatch(match);
-      if (canonical && !isLikelyNoiseModel(canonical)) {
+      const rejection = canonical && candidateNoiseReason(upper, start, end, canonical);
+      if (rejection) rejected.push(rejection);
+      if (canonical && !rejection && !isLikelyNoiseModel(canonical)) {
         candidates.push({
           model: canonical,
           variant: null,
@@ -256,7 +287,7 @@ function detectModel(text, brand = null, checkOtherModels = true) {
   };
 }
 
-function detectDescriptionModel(description, brand = null) {
+function detectDescriptionModel(description, brand = null, rejected = []) {
   if (description === "") {
     return null;
   }
@@ -272,7 +303,7 @@ function detectDescriptionModel(description, brand = null) {
   }
 
   const models = contexts
-    .map((context) => detectModel(context, brand))
+    .map((context) => detectModel(context, brand, true, rejected))
     .filter(Boolean);
 
   if (models.some((model) => model.conflict)) {
@@ -440,9 +471,12 @@ export function normalizeGuitarIdentity({
 
   const titleBrand = detectBrand(normalizedTitle);
   const descriptionBrand = detectDescriptionBrand(normalizedDescription);
+  const rejectedCandidates = [];
   const titleModel = detectModel(
     normalizedTitle,
     titleBrand?.conflict ? null : titleBrand?.brand ?? null,
+    true,
+    rejectedCandidates,
   );
   const descriptionModel = detectDescriptionModel(
     normalizedDescription,
@@ -451,6 +485,7 @@ export function normalizeGuitarIdentity({
       : (titleBrand?.conflict ? null : titleBrand?.brand)
         ?? descriptionBrand?.brand
         ?? null,
+    rejectedCandidates,
   );
 
   const resolvedBrand = resolveBrand(
@@ -463,6 +498,7 @@ export function normalizeGuitarIdentity({
     descriptionModel,
     reasons,
   );
+  reasons.push(...new Set(rejectedCandidates));
   const conflict = resolvedBrand.conflict || resolvedModel.conflict;
 
   return {

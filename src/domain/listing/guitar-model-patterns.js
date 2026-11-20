@@ -105,6 +105,14 @@ export const GUITAR_MODEL_RULES = Object.freeze({
       build: () => ({ model: "EJ200", variant: null }),
     },
   ]),
+  HEX: Object.freeze([
+    {
+      id: "HEX_Y500N",
+      pattern: /\bY\s*[- ]?\s*500\s*N\b/i,
+      build: () => ({ model: "Y500N", variant: null }),
+      checkOtherModels: true,
+    },
+  ]),
   TAKAMINE: Object.freeze([]),
   DAME: Object.freeze([
     {

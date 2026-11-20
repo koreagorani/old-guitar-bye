@@ -169,3 +169,24 @@ UNCERTAIN도 기존 평가기에서는 신품가 조회 자격이 있으므로
 실제 신품가 검색 성공, 매입 기준 12% 충족, TRACK 여부는 이 진단에서
 판정하지 않습니다. 운영 DB에 본문이 없다면 이번 본문 근거 규칙의 효과는
 해당 DB에서 관측되지 않을 수 있습니다.
+
+2026년 11월 제목 기반 식별 규칙 변경 전후를 비교하려면 다음 옵션을 사용합니다.
+이 옵션은 로컬 Git 이력의 `120998c20dd9d598221f0cd0a887252f06291f69`에서
+관련성·식별 규칙을 읽고 **같은 DB 행**을 새 규칙과 비교합니다. HTTP 요청은
+없으며 운영 DB는 읽기 전용입니다.
+
+```bash
+cd /home/ubuntu/old-guitar-bye && DATABASE_PATH=/home/ubuntu/old-guitar-bye/data/guitar.db npm run -s diagnose:title-patterns -- --compare-identity-baseline > /tmp/old-guitar-identity-safety.json
+```
+
+`comparison.confidenceCounts`는 전체 최근 매물의 HIGH/MEDIUM/LOW,
+`comparison.identityChanges`는 모델 추가·제외와 신뢰도 변화, 변경 전후
+근거를 보여줍니다. `changes.newlyReferenceEligible`과
+`changes.lostReferenceEligible`은 실제 신품가 조회 자격 변화입니다.
+`reviewSamples`는 제목 패턴별 고정 ID 해시 순으로 중복 없이 추출한
+수동 검토용 매물입니다. 모든 사례는 `manualReview: NOT_REVIEWED`이며,
+모델형 코드와 무관 상품 의심은 자동 추정일 뿐 사실 확인 결과가 아닙니다.
+앰프 출력·크기·수량 표기와 액세서리 주변 코드가 제외되더라도 실제 기타
+모델까지 제외되지 않았는지 이 표본을 확인해야 합니다.
+`Bunjang live smoke`는 Bunjang 수집기 또는 해당 smoke 스크립트 변경에서만
+자동 실행되며, 이 진단·분류기 수정은 상세 API 조회를 유발하지 않습니다.

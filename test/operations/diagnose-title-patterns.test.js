@@ -29,6 +29,13 @@ test("title-pattern CLI reads only Bunjang and never modifies the database", (co
       description: "", askingPriceKrw: 10000, sellerLocationText: null,
       discoveredAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(),
     });
+    saveOrUpdateListing(db, {
+      marketplace: "BUNJANG", externalListingId: "125",
+      url: "https://m.bunjang.co.kr/products/125",
+      title: "cort 콜트 베이스기타 사용 10회미만, 기타 입문용 앰프 15w 8인치 스피커 기타 거치대 세트 판매",
+      description: "", askingPriceKrw: 10000, sellerLocationText: null,
+      discoveredAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(),
+    });
   } finally {
     db.close();
   }
@@ -40,7 +47,7 @@ test("title-pattern CLI reads only Bunjang and never modifies the database", (co
   const output = run();
   assert.equal(output.status, 0, output.stderr);
   const report = JSON.parse(output.stdout);
-  assert.equal(report.total, 2);
+  assert.equal(report.total, 3);
   assert.equal(report.patterns.SUSPECTED_UNRELATED_SEARCH_RESULT.count, 1);
   assert.equal(output.stdout.includes("010-1234-5678"), false);
   assert.deepEqual(readFileSync(path), before);
@@ -48,6 +55,14 @@ test("title-pattern CLI reads only Bunjang and never modifies the database", (co
   assert.equal(compared.status, 0, compared.stderr);
   assert.equal(JSON.parse(compared.stdout).comparison.changes.newlyIrrelevant, 1);
   assert.equal(JSON.parse(compared.stdout).comparison.changes.newlyReferenceEligible, 0);
+  assert.deepEqual(readFileSync(path), before);
+  const identityCompared = run("--compare-identity-baseline");
+  assert.equal(identityCompared.status, 0, identityCompared.stderr);
+  const identityReport = JSON.parse(identityCompared.stdout);
+  assert.equal(identityReport.comparison.identityChanges.safetyDowngrades.length, 1);
+  assert.equal(identityReport.comparison.identityChanges.safetyDowngrades[0].before.model, "15W");
+  assert.equal(identityReport.comparison.identityChanges.safetyDowngrades[0].after.model, null);
+  assert.equal(identityReport.comparison.changes.lostReferenceEligible, 1);
   assert.deepEqual(readFileSync(path), before);
   assert.notEqual(run("--unknown").status, 0);
   assert.deepEqual(readFileSync(path), before);

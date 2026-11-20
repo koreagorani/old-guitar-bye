@@ -1,6 +1,7 @@
 import {
   GUITAR_BRAND_ALIASES,
 } from "./guitar-brand-aliases.js";
+import { matchBrandModelRule } from "./guitar-model-patterns.js";
 
 export const LISTING_RELEVANCE = Object.freeze({
   RELEVANT: "RELEVANT",
@@ -111,6 +112,14 @@ const NON_GUITAR_OTHER_CONTEXT_RULES = Object.freeze([
 
 const NON_INSTRUMENT_CATEGORY_RULES = Object.freeze([
   {
+    reason: "NON_INSTRUMENT_GAME_CONTROLLER",
+    pattern: /(?:기타\s*히어로|guitar\s*hero)/i,
+  },
+  {
+    reason: "NON_INSTRUMENT_BAPE_CUSHION",
+    pattern: /(?:\bbape\b|베이프).*(?:\bcushion\b|쿠션)/i,
+  },
+  {
     reason: "NON_INSTRUMENT_STORAGE",
     pattern: /\b(?:ssd|hdd|nvme|하드디스크|메모리)\b/i,
   },
@@ -205,10 +214,20 @@ function hasSeparateBody(title) {
 function titleHasKnownBrand(title) {
   return Object.values(GUITAR_BRAND_ALIASES)
     .flat()
-    .some((alias) => {
-      const normalizedAlias = alias.normalize("NFKC").toLowerCase();
-      return title.includes(normalizedAlias);
-    });
+    .some((alias) => titleHasBrandAlias(title, alias));
+}
+
+function titleHasBrandAlias(title, alias) {
+  const normalized = alias.normalize("NFKC").toLowerCase();
+  if (!/^[a-z0-9 ]+$/.test(normalized)) return title.includes(normalized);
+  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s*");
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, "i").test(title);
+}
+
+function titleHasVerifiedBrandModel(title) {
+  return Object.entries(GUITAR_BRAND_ALIASES).some(([brand, aliases]) =>
+    aliases.some((alias) => titleHasBrandAlias(title, alias))
+      && matchBrandModelRule(brand, title) !== null);
 }
 
 export function classifyListingRelevance({
@@ -239,8 +258,9 @@ export function classifyListingRelevance({
   const accessoryReasons = findAccessoryReasons(normalizedTitle);
   const titleHasStrongBody = STRONG_BODY_PATTERN.test(normalizedTitle);
   const titleHasGenericGuitar = GENERIC_GUITAR_NOUN_PATTERN.test(normalizedTitle);
-  const titleHasSpecificIdentity = titleHasKnownBrand(normalizedTitle)
-    && MODEL_LIKE_PATTERN.test(normalizedTitle);
+  const titleHasSpecificIdentity = (titleHasKnownBrand(normalizedTitle)
+    && MODEL_LIKE_PATTERN.test(normalizedTitle))
+    || titleHasVerifiedBrandModel(normalizedTitle);
   const descriptionHasBody = !ACCESSORY_ONLY_SIGNAL.test(normalizedDescription)
     && DESCRIPTION_BODY_PATTERN.test(normalizedDescription);
   const explicitDescriptionBody = !ACCESSORY_ONLY_SIGNAL.test(normalizedDescription)

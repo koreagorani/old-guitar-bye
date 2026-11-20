@@ -326,3 +326,61 @@ test("recognizes verified models only with their own brand and keeps conflicts u
       { brand, model, confidence }, title);
   }
 });
+
+test("amp output is not promoted to a HIGH guitar model", () => {
+  const title = "cort 콜트 베이스기타 사용 10회미만, 기타 입문용 앰프 15w 8인치 스피커 기타 거치대 세트 판매";
+  const result = normalizeGuitarIdentity({ title, guitarType: "BASS" });
+  assert.deepEqual({ brand: result.brand, model: result.model, confidence: result.confidence },
+    { brand: "CORT", model: null, confidence: "LOW" });
+  assert.ok(result.reasons.includes("MODEL_CANDIDATE_MEASUREMENT"));
+});
+
+test("usage counts, dimensions, prices, years, and quantities are not generic models", () => {
+  const titles = [
+    "Cort 기타 10회 사용 앰프 15W",
+    "Cort 기타 8INCH 스피커",
+    "Cort 기타 가격 30K",
+    "Cort 기타 2EA 세트",
+    "Cort 기타 YEAR2024 2024년 구입",
+  ];
+  for (const title of titles) {
+    const result = normalizeGuitarIdentity({ title });
+    assert.equal(result.model, null, title);
+    assert.equal(result.confidence, "LOW", title);
+  }
+});
+
+test("accessory model codes do not hijack guitar identity or create conflicts", () => {
+  const accessoryOnly = normalizeGuitarIdentity({ title: "Cort 베이스기타 + 앰프 CUBE10" });
+  assert.equal(accessoryOnly.model, null);
+  assert.equal(accessoryOnly.confidence, "LOW");
+  assert.ok(accessoryOnly.reasons.includes("MODEL_CANDIDATE_ACCESSORY_CONTEXT"));
+  const bundle = normalizeGuitarIdentity({ title: "Cort G280 기타 + 앰프 CUBE10" });
+  assert.equal(bundle.model, "G280");
+  assert.equal(bundle.confidence, "HIGH");
+  assert.ok(bundle.reasons.includes("MODEL_CANDIDATE_ACCESSORY_CONTEXT"));
+  const measuredBundle = normalizeGuitarIdentity({ title: "Cort G280 기타 + 앰프 15W" });
+  assert.equal(measuredBundle.model, "G280");
+  assert.equal(measuredBundle.confidence, "HIGH");
+});
+
+test("verified HEX Y500N remains the guitar model beside a pickup", () => {
+  const result = normalizeGuitarIdentity({ title: "헥스 세미 클래식기타 픽업 Y500N" });
+  assert.equal(result.brand, "HEX");
+  assert.equal(result.model, "Y500N");
+  assert.equal(result.confidence, "HIGH");
+  const bundle = normalizeGuitarIdentity({ title: "헥스 세미 클래식기타 픽업 Y500N + 앰프 15W" });
+  assert.equal(bundle.model, "Y500N");
+  assert.equal(bundle.confidence, "HIGH");
+});
+
+test("ambiguous model and brand shorthand remain LOW without corroboration", () => {
+  const japaneseFender = normalizeGuitarIdentity({ title: "일펜 57 리이슈 st57" });
+  assert.equal(japaneseFender.brand, null);
+  assert.equal(japaneseFender.model, "ST57");
+  assert.equal(japaneseFender.confidence, "LOW");
+  const epiphone = normalizeGuitarIdentity({ title: "에피폰 레스폴 클래식 원 바이올렛 퍼플 무선앰프 포함" });
+  assert.equal(epiphone.brand, "EPIPHONE");
+  assert.equal(epiphone.model, null);
+  assert.equal(epiphone.confidence, "LOW");
+});

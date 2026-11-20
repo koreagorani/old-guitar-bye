@@ -27,6 +27,45 @@ function countByRelevance() {
   return { RELEVANT: 0, UNCERTAIN: 0, IRRELEVANT: 0 };
 }
 
+function countByConfidence() {
+  return { HIGH: 0, MEDIUM: 0, LOW: 0 };
+}
+
+function stableHash(value) {
+  let hash = 2166136261;
+  for (const character of value) hash = Math.imul(hash ^ character.codePointAt(0), 16777619);
+  return hash >>> 0;
+}
+
+function identityExample(identity) {
+  return { brand: identity.brand, model: identity.model ? redactListingText(identity.model) : null,
+    confidence: identity.confidence, reasons: identity.reasons };
+}
+
+function stratifiedReview(buckets, limit) {
+  const seen = new Set();
+  const selected = [];
+  for (const group of Object.values(buckets)) {
+    group.sort((a, b) => stableHash(a.row.externalListingId) - stableHash(b.row.externalListingId)
+      || a.row.externalListingId.localeCompare(b.row.externalListingId));
+  }
+  while (selected.length < limit) {
+    let added = false;
+    for (const [pattern, group] of Object.entries(buckets)) {
+      while (group.length && seen.has(group[0].row.externalListingId)) group.shift();
+      if (!group.length) continue;
+      const { row, identity } = group.shift();
+      seen.add(row.externalListingId);
+      selected.push({ ...example(row), pattern, identity: identityExample(identity),
+        manualReview: "NOT_REVIEWED" });
+      added = true;
+      if (selected.length === limit) break;
+    }
+    if (!added) break;
+  }
+  return selected;
+}
+
 function referenceEligible(relevance, identity) {
   // The current evaluator admits both RELEVANT and UNCERTAIN to identity/reference evaluation.
   return relevance !== LISTING_RELEVANCE.IRRELEVANT && !!identity.brand && !!identity.model
@@ -53,14 +92,18 @@ export function diagnoseTitlePatterns({
   lookbackDays = 30,
   exampleLimit = 3,
   baselineClassify = null,
+  baselineNormalize = normalizeGuitarIdentity,
+  reviewLimit = 24,
 }) {
   if (!Array.isArray(listings)) throw new TypeError("listings must be an array");
   if (!Number.isSafeInteger(lookbackDays) || lookbackDays < 1
-    || !Number.isSafeInteger(exampleLimit) || exampleLimit < 1 || exampleLimit > 30) {
-    throw new TypeError("lookbackDays and exampleLimit must be positive integers (exampleLimit <= 30)");
+    || !Number.isSafeInteger(exampleLimit) || exampleLimit < 1 || exampleLimit > 30
+    || !Number.isSafeInteger(reviewLimit) || reviewLimit < 1 || reviewLimit > 100) {
+    throw new TypeError("lookbackDays, exampleLimit, reviewLimit must be positive integers (exampleLimit <= 30, reviewLimit <= 100)");
   }
-  if (baselineClassify !== null && typeof baselineClassify !== "function") {
-    throw new TypeError("baselineClassify must be a function");
+  if ((baselineClassify !== null && typeof baselineClassify !== "function")
+    || typeof baselineNormalize !== "function") {
+    throw new TypeError("baselineClassify and baselineNormalize must be functions");
   }
   const date = now();
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) throw new TypeError("now must return a valid Date");
@@ -72,10 +115,15 @@ export function diagnoseTitlePatterns({
     [key, { definition, count: 0, examples: [] }]));
   const noDecisivePatterns = Object.fromEntries(Object.entries(DEFINITIONS).map(([key, definition]) =>
     [key, { definition, count: 0, examples: [] }]));
+  const reviewBuckets = Object.fromEntries(Object.keys(DEFINITIONS).map((key) => [key, []]));
   const currentCounts = countByRelevance();
   const baselineCounts = countByRelevance();
   const changes = { newlyRelevant: 0, newlyIrrelevant: 0, newlyReferenceEligible: 0,
+    lostReferenceEligible: 0,
     newlyRelevantAlreadyReferenceEligible: 0, examples: [] };
+  const identityChanges = { changed: 0, modelAdded: 0, modelRemoved: 0,
+    confidenceTransitions: {}, safetyDowngrades: [], newlyIdentified: [], otherChanges: [] };
+  const confidenceCounts = { baseline: countByConfidence(), current: countByConfidence() };
   const identityCounts = { currentBrandAndModel: 0, baselineBrandAndModel: 0,
     currentReferenceEligible: 0, baselineReferenceEligible: 0 };
   let noDecisiveCount = 0;
@@ -88,6 +136,7 @@ export function diagnoseTitlePatterns({
     const currentIdentity = normalizeGuitarIdentity({
       title: row.title, description: row.description, guitarType: current.guitarType,
     });
+    confidenceCounts.current[currentIdentity.confidence] += 1;
     if (currentIdentity.brand && currentIdentity.model) identityCounts.currentBrandAndModel += 1;
     const currentEligible = referenceEligible(current.relevance, currentIdentity);
     if (currentEligible) identityCounts.currentReferenceEligible += 1;
@@ -100,6 +149,7 @@ export function diagnoseTitlePatterns({
       const flags = patternsFor(row, titleIdentity, current);
       for (const [key, present] of Object.entries(flags)) {
         if (!present) continue;
+        reviewBuckets[key].push({ row, identity: currentIdentity });
         for (const group of [patterns, ...(noDecisive ? [noDecisivePatterns] : [])]) {
           group[key].count += 1;
           if (group[key].examples.length < exampleLimit) group[key].examples.push(example(row));
@@ -110,9 +160,10 @@ export function diagnoseTitlePatterns({
     if (baselineClassify) {
       const baseline = baselineClassify(row);
       baselineCounts[baseline.relevance] += 1;
-      const baselineIdentity = normalizeGuitarIdentity({
+      const baselineIdentity = baselineNormalize({
         title: row.title, description: row.description, guitarType: baseline.guitarType,
       });
+      confidenceCounts.baseline[baselineIdentity.confidence] += 1;
       if (baselineIdentity.brand && baselineIdentity.model) identityCounts.baselineBrandAndModel += 1;
       const baselineEligible = referenceEligible(baseline.relevance, baselineIdentity);
       if (baselineEligible) identityCounts.baselineReferenceEligible += 1;
@@ -127,9 +178,30 @@ export function diagnoseTitlePatterns({
         });
       }
       if (!baselineEligible && currentEligible) changes.newlyReferenceEligible += 1;
+      if (baselineEligible && !currentEligible) changes.lostReferenceEligible += 1;
       if (baseline.relevance !== LISTING_RELEVANCE.RELEVANT
         && current.relevance === LISTING_RELEVANCE.RELEVANT && baselineEligible) {
         changes.newlyRelevantAlreadyReferenceEligible += 1;
+      }
+      if (baselineIdentity.brand !== currentIdentity.brand
+        || baselineIdentity.model !== currentIdentity.model
+        || baselineIdentity.confidence !== currentIdentity.confidence) {
+        identityChanges.changed += 1;
+        if (!baselineIdentity.model && currentIdentity.model) identityChanges.modelAdded += 1;
+        if (baselineIdentity.model && !currentIdentity.model) identityChanges.modelRemoved += 1;
+        const transition = `${baselineIdentity.confidence}->${currentIdentity.confidence}`;
+        identityChanges.confidenceTransitions[transition] =
+          (identityChanges.confidenceTransitions[transition] ?? 0) + 1;
+        const changedExample = { ...example(row), before: identityExample(baselineIdentity),
+          after: identityExample(currentIdentity), beforeRelevance: baseline.relevance,
+          afterRelevance: current.relevance, beforeReferenceEligible: baselineEligible,
+          afterReferenceEligible: currentEligible, manualReview: "NOT_REVIEWED" };
+        const group = baselineIdentity.confidence !== IDENTITY_CONFIDENCE.LOW
+          && currentIdentity.confidence === IDENTITY_CONFIDENCE.LOW
+          ? identityChanges.safetyDowngrades
+          : !baselineIdentity.model && currentIdentity.model
+            ? identityChanges.newlyIdentified : identityChanges.otherChanges;
+        if (group.length < exampleLimit) group.push(changedExample);
       }
     }
   }
@@ -139,12 +211,15 @@ export function diagnoseTitlePatterns({
     uncertain: currentCounts.UNCERTAIN, noDecisiveCount,
     patterns, noDecisivePatterns, irrelevantOtherEtcCount,
     patternInterpretation: "패턴은 중복 집계되는 제목 기반 휴리스틱이며, 본문/사진을 수동 검증한 결과가 아님",
+    reviewSampleMethod: "제목 패턴별 ID 고정 해시 순 라운드로빈, 중복 제외. 자동 단서이며 수동 검증 아님",
+    reviewSamples: stratifiedReview(reviewBuckets, reviewLimit),
     identityCounts: baselineClassify ? identityCounts : {
       currentBrandAndModel: identityCounts.currentBrandAndModel,
       currentReferenceEligible: identityCounts.currentReferenceEligible,
     },
     comparison: baselineClassify ? {
-      baselineCounts, currentCounts, changes,
+      baselineCounts, currentCounts, changes, confidenceCounts, identityChanges,
+      confidenceInterpretation: "식별 확신도 건수는 최근 매물 전체(관련성 무관)를 분모로 함",
       referenceInterpretation: "신품가 조회 대상은 관련성이 IRRELEVANT가 아니고 브랜드·모델 및 식별 확신도가 충분한 매물. 실제 신품가 조회 성공이나 TRACK을 의미하지 않음",
     } : null,
   };
